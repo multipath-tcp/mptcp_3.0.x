@@ -1859,6 +1859,7 @@ process:
 		meta_sk = mptcp_meta_sk(sk);
 
 		bh_lock_sock_nested(meta_sk);
+		skb->sk = sk;
 	} else {
 		bh_lock_sock_nested(sk);
 
@@ -1868,6 +1869,7 @@ process:
 
 			bh_unlock_sock(sk);
 			bh_lock_sock_nested(meta_sk);
+			skb->sk = sk;
 		}
 	}
 
@@ -1877,7 +1879,7 @@ process:
 		if (!sock_owned_by_user(meta_sk)) {
 			if (!tcp_prequeue(sk, skb))
 				ret = tcp_v6_do_rcv(sk, skb);
-		} else if (unlikely(sk_add_backlog(sk, skb))) {
+		} else if (unlikely(sk_add_backlog(meta_sk, skb))) {
 			bh_unlock_sock(meta_sk);
 			NET_INC_STATS_BH(net, LINUX_MIB_TCPBACKLOGDROP);
 			goto discard_and_relse;
