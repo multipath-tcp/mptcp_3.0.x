@@ -326,6 +326,7 @@ struct sk_buff {
 	/* These two members must be first. */
 	struct sk_buff		*next;
 	struct sk_buff		*prev;
+
 #ifdef CONFIG_MPTCP
 	short                   is_node;
 	struct sock             *shortcut_owner; /* Owner of a shortcut pointer
@@ -337,6 +338,7 @@ struct sk_buff {
 
 	struct sock		*sk;
 	struct net_device	*dev;
+
 	/*
 	 * This is the control buffer. It is free to use for every
 	 * layer. Please put your private variables there. If you
