@@ -4416,7 +4416,7 @@ static void tcp_ofo_queue(struct sock *sk)
 static inline int tcp_try_rmem_schedule(struct sock *sk, unsigned int size)
 {
 	if (tcp_sk(sk)->mpc)
-		return mptcp_try_rmem_schedule(sk, size);
+		sk = mptcp_meta_sk(sk);
 
 	if (atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf ||
 	    !sk_rmem_schedule(sk, size)) {
@@ -4687,7 +4687,6 @@ add_sack:
 	}
 }
 
-#ifndef CONFIG_MPTCP
 static struct sk_buff *tcp_collapse_one(struct sock *sk, struct sk_buff *skb,
 					struct sk_buff_head *list)
 {
@@ -4702,7 +4701,6 @@ static struct sk_buff *tcp_collapse_one(struct sock *sk, struct sk_buff *skb,
 
 	return next;
 }
-#endif
 
 /* Collapse contiguous sequence of skbs head..tail with
  * sequence numbers start..end.
@@ -4719,7 +4717,6 @@ static struct sk_buff *tcp_collapse_one(struct sock *sk, struct sk_buff *skb,
  * NOTE that when supporting this, we will need to ensure that the path_index
  * field is copied when creating the new skbuff.
  */
-#ifndef CONFIG_MPTCP
 static void
 tcp_collapse(struct sock *sk, struct sk_buff_head *list,
 	     struct sk_buff *head, struct sk_buff *tail,
@@ -4822,12 +4819,10 @@ restart:
 		}
 	}
 }
-#endif
 
 /* Collapse ofo queue. Algorithm: select contiguous sequence of skbs
  * and tcp_collapse() them until all the queue is collapsed.
  */
-#ifndef CONFIG_MPTCP
 static void tcp_collapse_ofo_queue(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -4835,7 +4830,10 @@ static void tcp_collapse_ofo_queue(struct sock *sk)
 	struct sk_buff *head;
 	u32 start, end;
 
-	if (skb == NULL)
+	/* TODO - we can adapt this here for MPTCP at the subflow level but
+	 * also at the meta-level.
+	 */
+	if (skb == NULL || tp->mpc)
 		return;
 
 	start = TCP_SKB_CB(skb)->seq;
@@ -4870,7 +4868,6 @@ static void tcp_collapse_ofo_queue(struct sock *sk)
 		}
 	}
 }
-#endif
 
 /*
  * Purge the out-of-order queue.
@@ -4880,6 +4877,13 @@ int tcp_prune_ofo_queue(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	int res = 0;
+
+	/* TODO - adapt for MPTCP - here we return 0, because there are other
+	 * places that should be first optimized. Then, we can start pruning
+	 * the ofo-queue.
+	 */
+	if (tp->mpc)
+		return 0;
 
 	if (!skb_queue_empty(&tp->out_of_order_queue)) {
 		NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_OFOPRUNED);
@@ -4909,6 +4913,12 @@ int tcp_prune_queue(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
+	/* TODO - we can adapt this here for MPTCP on the subflow-level
+	 * but also at the meta-level.
+	 */
+	if (tp->mpc)
+		return -1;
+
 	SOCK_DEBUG(sk, "prune_queue: c=%x\n", tp->copied_seq);
 
 	NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_PRUNECALLED);
@@ -4918,15 +4928,13 @@ int tcp_prune_queue(struct sock *sk)
 	else if (tcp_memory_pressure)
 		tp->rcv_ssthresh = min(tp->rcv_ssthresh, 4U * tp->advmss);
 
-#ifndef CONFIG_MPTCP
 	tcp_collapse_ofo_queue(sk);
 	if (!skb_queue_empty(&sk->sk_receive_queue))
 		tcp_collapse(sk, &sk->sk_receive_queue,
 			     skb_peek(&sk->sk_receive_queue),
 			     NULL,
 			     tp->copied_seq, tp->rcv_nxt);
-#endif
-	mptcp_update_window_clamp(tp);
+
 	sk_mem_reclaim(sk);
 
 	if (atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf)
