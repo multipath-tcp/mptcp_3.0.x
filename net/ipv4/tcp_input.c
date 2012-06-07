@@ -5006,6 +5006,7 @@ static int tcp_should_expand_sndbuf(struct sock *sk)
 	if (!tp->mpc && tp->packets_out >= tp->snd_cwnd)
 		return 0;
 
+#ifdef CONFIG_MPTCP
 	if (tp->mpc) {
 		struct sock *sk_it;
 		int cnt_backups = 0;
@@ -5039,6 +5040,7 @@ static int tcp_should_expand_sndbuf(struct sock *sk)
 			return 1;
 		return 0;
 	}
+#endif
 
 	return 1;
 }
