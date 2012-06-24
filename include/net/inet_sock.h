@@ -153,7 +153,6 @@ struct inet_sock {
 	__u16			inet_id;
 
 #ifdef CONFIG_MPTCP
-	__u8			loc_id;
 	__u8			rem_id;
 #endif /* CONFIG_MPTCP */
 
