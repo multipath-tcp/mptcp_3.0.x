@@ -325,6 +325,7 @@ struct tcp_request_sock {
 #endif
 	u32				rcv_isn;
 	u32				snt_isn;
+	u8				saw_mpc:1;
 };
 
 static inline struct tcp_request_sock *tcp_rsk(const struct request_sock *req)
