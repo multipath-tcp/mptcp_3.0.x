@@ -72,6 +72,10 @@
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
 
+static void	__tcp_v6_send_check(struct sk_buff *skb,
+				    const struct in6_addr *saddr,
+				    const struct in6_addr *daddr);
+
 #ifdef CONFIG_TCP_MD5SIG
 static const struct tcp_sock_af_ops tcp_sock_ipv6_mapped_specific;
 #else
@@ -103,7 +107,7 @@ static __inline__ __sum16 tcp_v6_check(int len,
 	return csum_ipv6_magic(saddr, daddr, len, IPPROTO_TCP, base);
 }
 
-__u32 tcp_v6_init_sequence(struct sk_buff *skb)
+__u32 tcp_v6_init_sequence(const struct sk_buff *skb)
 {
 	return secure_tcpv6_sequence_number(ipv6_hdr(skb)->daddr.s6_addr32,
 					    ipv6_hdr(skb)->saddr.s6_addr32,
@@ -909,8 +913,8 @@ static const struct tcp_request_sock_ops tcp_request_sock_ipv6_ops = {
 };
 #endif
 
-void __tcp_v6_send_check(struct sk_buff *skb,
-			 const struct in6_addr *saddr, const struct in6_addr *daddr)
+static void __tcp_v6_send_check(struct sk_buff *skb,
+				const struct in6_addr *saddr, const struct in6_addr *daddr)
 {
 	struct tcphdr *th = tcp_hdr(skb);
 

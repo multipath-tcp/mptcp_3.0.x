@@ -67,7 +67,7 @@ EXPORT_SYMBOL_GPL(sysctl_tcp_cookie_size);
 
 
 /* Account for new data that has been sent to the network. */
-void tcp_event_new_data_sent(struct sock *sk, struct sk_buff *skb)
+void tcp_event_new_data_sent(struct sock *sk, const struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	unsigned int prior_packets = tp->packets_out;
@@ -962,7 +962,7 @@ void tcp_queue_skb(struct sock *sk, struct sk_buff *skb)
 }
 
 /* Initialize TSO segments for a packet. */
-static void tcp_set_skb_tso_segs(struct sock *sk, struct sk_buff *skb,
+static void tcp_set_skb_tso_segs(const struct sock *sk, struct sk_buff *skb,
 				 unsigned int mss_now)
 {
 	if (skb->len <= mss_now || !sk_can_gso(sk) ||
@@ -1351,7 +1351,7 @@ void tcp_cwnd_validate(struct sock *sk)
  * modulo only when the receiver window alone is the limiting factor or
  * when we would be allowed to send the split-due-to-Nagle skb fully.
  */
-unsigned int tcp_mss_split_point(struct sock *sk, struct sk_buff *skb,
+unsigned int tcp_mss_split_point(const struct sock *sk, const struct sk_buff *skb,
 				 unsigned int mss_now, unsigned int cwnd)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1374,7 +1374,7 @@ unsigned int tcp_mss_split_point(struct sock *sk, struct sk_buff *skb,
 /* Can at least one segment of SKB be sent right now, according to the
  * congestion window rules?  If so, return how many segments are allowed.
  */
-unsigned int tcp_cwnd_test(struct tcp_sock *tp, struct sk_buff *skb)
+unsigned int tcp_cwnd_test(const struct tcp_sock *tp, const struct sk_buff *skb)
 {
 	u32 in_flight, cwnd;
 
@@ -1396,7 +1396,7 @@ unsigned int tcp_cwnd_test(struct tcp_sock *tp, struct sk_buff *skb)
  * This must be invoked the first time we consider transmitting
  * SKB onto the wire.
  */
-int tcp_init_tso_segs(struct sock *sk, struct sk_buff *skb,
+int tcp_init_tso_segs(const struct sock *sk, struct sk_buff *skb,
 		      unsigned int mss_now)
 {
 	int tso_segs = tcp_skb_pcount(skb);
@@ -1434,7 +1434,7 @@ static inline int tcp_nagle_check(const struct tcp_sock *tp,
 /* Return non-zero if the Nagle test allows this packet to be
  * sent now.
  */
-int tcp_nagle_test(struct tcp_sock *tp, struct sk_buff *skb,
+int tcp_nagle_test(const struct tcp_sock *tp, const struct sk_buff *skb,
 		   unsigned int cur_mss, int nonagle)
 {
 	/* Nagle rule does not apply to frames, which sit in the middle of the
@@ -1460,7 +1460,7 @@ int tcp_nagle_test(struct tcp_sock *tp, struct sk_buff *skb,
 }
 
 /* Does at least the first segment of SKB fit into the send window? */
-int tcp_snd_wnd_test(struct tcp_sock *tp, struct sk_buff *skb,
+int tcp_snd_wnd_test(const struct tcp_sock *tp, const struct sk_buff *skb,
 		     unsigned int cur_mss)
 {
 	u32 end_seq = TCP_SKB_CB(skb)->end_seq;
