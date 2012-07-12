@@ -72,9 +72,6 @@
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
 
-static void	tcp_v6_reqsk_send_ack(struct sock *sk, struct sk_buff *skb,
-				      struct request_sock *req);
-
 #ifdef CONFIG_TCP_MD5SIG
 static const struct tcp_sock_af_ops tcp_sock_ipv6_mapped_specific;
 #else
@@ -520,8 +517,8 @@ done:
 	return err;
 }
 
-static int tcp_v6_rtx_synack(struct sock *sk, struct request_sock *req,
-			     struct request_values *rvp)
+int tcp_v6_rtx_synack(struct sock *sk, struct request_sock *req,
+		      struct request_values *rvp)
 {
 	TCP_INC_STATS_BH(sock_net(sk), TCP_MIB_RETRANSSEGS);
 
@@ -544,9 +541,6 @@ static inline void syn_flood_warning(struct sk_buff *skb)
 
 static void tcp_v6_reqsk_destructor(struct request_sock *req)
 {
-	if (mptcp_req_sk_saw_mpc(req))
-		mptcp_reqsk_destructor(req);
-
 	kfree_skb(inet6_rsk(req)->pktopts);
 }
 
@@ -908,16 +902,6 @@ struct request_sock_ops tcp6_request_sock_ops __read_mostly = {
 	.syn_ack_timeout = 	tcp_syn_ack_timeout,
 };
 
-struct request_sock_ops mptcp6_request_sock_ops __read_mostly = {
-	.family		=	AF_INET6,
-	.obj_size	=	sizeof(struct mptcp6_request_sock),
-	.rtx_syn_ack	=	tcp_v6_rtx_synack,
-	.send_ack	=	tcp_v6_reqsk_send_ack,
-	.destructor	=	tcp_v6_reqsk_destructor,
-	.send_reset	=	tcp_v6_send_reset,
-	.syn_ack_timeout =	tcp_syn_ack_timeout,
-};
-
 #ifdef CONFIG_TCP_MD5SIG
 static const struct tcp_request_sock_ops tcp_request_sock_ipv6_ops = {
 	.md5_lookup	=	tcp_v6_reqsk_md5_lookup,
@@ -1179,8 +1163,8 @@ static void tcp_v6_timewait_ack(struct sock *sk, struct sk_buff *skb)
 	inet_twsk_put(tw);
 }
 
-static void tcp_v6_reqsk_send_ack(struct sock *sk, struct sk_buff *skb,
-				  struct request_sock *req)
+void tcp_v6_reqsk_send_ack(struct sock *sk, struct sk_buff *skb,
+			   struct request_sock *req)
 {
 	tcp_v6_send_ack(skb, tcp_rsk(req)->snt_isn + 1, tcp_rsk(req)->rcv_isn + 1,
 			0, req->rcv_wnd, req->ts_recent,
