@@ -130,7 +130,6 @@
 
 #ifdef CONFIG_INET
 #include <net/tcp.h>
-#include <net/mptcp.h>
 #endif
 
 /*
@@ -1149,17 +1148,8 @@ static void __sk_free(struct sock *sk)
 {
 	struct sk_filter *filter;
 
-	if (sk->sk_destruct) {
-		/* Ugly hack at the moment - sk_destruct (inet_sock_destruct)
-		 * called mpcb_release who destroyed the mpcb.
-		 * Thus, we have to stop here. */
-		if (is_meta_sk(sk)) {
-			sk->sk_destruct(sk);
-			return;
-		}
-
+	if (sk->sk_destruct)
 		sk->sk_destruct(sk);
-	}
 
 	filter = rcu_dereference_check(sk->sk_filter,
 				       atomic_read(&sk->sk_wmem_alloc) == 0);
