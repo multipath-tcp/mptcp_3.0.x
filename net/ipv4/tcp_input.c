@@ -504,7 +504,7 @@ void tcp_rcv_space_adjust(struct sock *sk)
 		goto new_measure;
 
 	time = tcp_time_stamp - tp->rcvq_space.time;
-	if (tp->mptcp) {
+	if (tp->mpc) {
 		if (mptcp_check_rtt(tp, time))
 			return;
 	} else if (time < (tp->rcv_rtt_est.rtt >> 3) || tp->rcv_rtt_est.rtt == 0)
@@ -3307,7 +3307,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, int prior_fackets,
 		mptcp_clean_rtx_infinite(skb, sk);
 		tcp_unlink_write_queue(skb, sk);
 
-		if (tp->mptcp)
+		if (tp->mpc)
 			flag |= mptcp_fallback_infinite(tp, skb);
 
 		sk_wmem_free_skb(sk, skb);
@@ -3449,7 +3449,7 @@ static int tcp_ack_update_window(struct sock *sk, struct sk_buff *skb, u32 ack,
 	u32 nwin = ntohs(tcp_hdr(skb)->window);
 
 	/* Window-updates are handled in mptcp_data_ack */
-	if (tp->mptcp)
+	if (tp->mpc)
 		goto no_window_update;
 
 	if (likely(!tcp_hdr(skb)->syn))
@@ -3477,7 +3477,7 @@ static int tcp_ack_update_window(struct sock *sk, struct sk_buff *skb, u32 ack,
 
 no_window_update:
 	tp->snd_una = ack;
-	if (tp->mptcp && after(tp->snd_una, tp->mptcp->reinjected_seq))
+	if (tp->mpc && after(tp->snd_una, tp->mptcp->reinjected_seq))
 		tp->mptcp->reinjected_seq = tp->snd_una;
 
 	return flag;
@@ -5042,7 +5042,7 @@ static void tcp_new_space(struct sock *sk)
 			MAX_TCP_HEADER + 16 + sizeof(struct sk_buff);
 		int demanded;
 
-		if (tp->mptcp)
+		if (tp->mpc)
 			demanded = mptcp_check_snd_buf(tp);
 		else
 			demanded = max_t(unsigned int, tp->snd_cwnd,
@@ -6090,10 +6090,10 @@ out_syn_sent:
 
 				tp->snd_una = TCP_SKB_CB(skb)->ack_seq;
 #ifdef CONFIG_MPTCP
-				if (tp->mptcp && after(tp->snd_una, tp->mptcp->reinjected_seq))
+				if (tp->mpc && after(tp->snd_una, tp->mptcp->reinjected_seq))
 					tp->mptcp->reinjected_seq = tp->snd_una;
 #endif
-				if (tp->mptcp) {
+				if (tp->mpc) {
 					mpcb_meta_tp(tp->mpcb)->snd_wnd =
 						ntohs(th->window) <<
 						tp->rx_opt.snd_wscale;
