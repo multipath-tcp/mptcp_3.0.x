@@ -1600,7 +1600,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	lock_sock(sk);
 
 #ifdef CONFIG_MPTCP
-	if (mpcb) {
+	if (tp->mpc) {
 		mptcp_for_each_sk(mpcb, sk_it) {
 			if (!is_master_tp(tcp_sk(sk_it)))
 				sock_rps_record_flow(sk_it);
@@ -1761,7 +1761,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 			}
 		}
 
-		if (mpcb)
+		if (tp->mpc)
 			mptcp_cleanup_rbuf(sk, copied);
 		else
 			tcp_cleanup_rbuf(sk, copied);
@@ -1846,7 +1846,7 @@ int tcp_recvmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 				    !skb_queue_empty(&tcp_sk(sk_it)->
 						     ucopy.prequeue))) {
 do_prequeue:
-				if (mpcb) {
+				if (tp->mpc) {
 					mptcp_for_each_sk(mpcb, sk_it)
 						tcp_prequeue_process(sk_it);
 				} else {
@@ -1937,7 +1937,7 @@ do_prequeue:
 		copied += used;
 		len -= used;
 
-		if (mpcb) {
+		if (tp->mpc) {
 			mptcp_for_each_sk(mpcb, sk_it)
 				tcp_rcv_space_adjust(sk_it);
 		} else {
@@ -1978,7 +1978,7 @@ skip_copy:
 			int chunk;
 
 			tp->ucopy.len = copied > 0 ? len : 0;
-			if (mpcb) {
+			if (tp->mpc) {
 				mptcp_for_each_sk(mpcb, sk_it)
 					tcp_prequeue_process(sk_it);
 			} else {
@@ -2012,7 +2012,7 @@ skip_copy:
 	 */
 
 	/* Clean up data we have read: This will do ACK frames. */
-	if (mpcb)
+	if (tp->mpc)
 		mptcp_cleanup_rbuf(sk, copied);
 	else
 		tcp_cleanup_rbuf(sk, copied);
