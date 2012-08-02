@@ -1281,7 +1281,7 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 	struct tcp_extend_values tmp_ext;
 	struct tcp_options_received tmp_opt;
 	struct multipath_options mopt;
-	u8 *hash_location;
+	const u8 *hash_location;
 	struct request_sock *req;
 	struct inet_request_sock *ireq;
 	struct tcp_sock *tp = tcp_sk(sk);

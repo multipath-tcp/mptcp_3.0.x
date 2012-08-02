@@ -3769,8 +3769,10 @@ old_ack:
  * But, this can also be called on packets in the established flow when
  * the fast version below fails.
  */
-void tcp_parse_options(struct sk_buff *skb, struct tcp_options_received *opt_rx,
-		       u8 **hvpp, struct multipath_options *mopt, int estab)
+static void __tcp_parse_options(const struct sk_buff *skb,
+				struct tcp_options_received *opt_rx,
+				const u8 **hvpp, struct multipath_options *mopt,
+				int estab, int fast)
 {
 	unsigned char *ptr;
 	struct tcphdr *th = tcp_hdr(skb);
@@ -3879,8 +3881,13 @@ void tcp_parse_options(struct sk_buff *skb, struct tcp_options_received *opt_rx,
 				}
 				break;
 			case TCPOPT_MPTCP:
-				mptcp_parse_options(ptr - 2, opsize, opt_rx,
-						    mopt, skb);
+				/* Does not parse TCP options if coming from
+				 * tcp_fast_parse_options. They will be parsed
+				 * later.
+				 */
+				if (!fast)
+					mptcp_parse_options(ptr - 2, opsize,
+							    opt_rx, mopt, skb);
 				break;
 			}
 
@@ -3888,6 +3895,12 @@ void tcp_parse_options(struct sk_buff *skb, struct tcp_options_received *opt_rx,
 			length -= opsize;
 		}
 	}
+}
+
+void tcp_parse_options(const struct sk_buff *skb, struct tcp_options_received *opt_rx,
+		       const u8 **hvpp, struct multipath_options *mopt, int estab)
+{
+	__tcp_parse_options(skb, opt_rx, hvpp, mopt, estab, 0);
 }
 EXPORT_SYMBOL(tcp_parse_options);
 
@@ -3911,7 +3924,7 @@ static int tcp_parse_aligned_timestamp(struct tcp_sock *tp, struct tcphdr *th)
  * If it is wrong it falls back on tcp_parse_options().
  */
 static int tcp_fast_parse_options(struct sk_buff *skb, struct tcphdr *th,
-				struct tcp_sock *tp, u8 **hvpp)
+				struct tcp_sock *tp, const u8 **hvpp)
 {
 	struct mptcp_cb *mpcb;
 	/* In the spirit of fast parsing, compare doff directly to constant
@@ -3927,8 +3940,8 @@ static int tcp_fast_parse_options(struct sk_buff *skb, struct tcphdr *th,
 	}
 	mpcb = mpcb_from_tcpsock(tp);
 
-	tcp_parse_options(skb, &tp->rx_opt, hvpp,
-			  mpcb ? &mpcb->rx_opt : NULL, 1);
+	__tcp_parse_options(skb, &tp->rx_opt, hvpp,
+			    mpcb ? &mpcb->rx_opt : NULL, 1, 1);
 
 	mptcp_path_array_check(mpcb);
 	mptcp_mp_fail_rcvd(mpcb, (struct sock *)tp, th);
@@ -5333,7 +5346,7 @@ out:
 static int tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 			      struct tcphdr *th, int syn_inerr)
 {
-	u8 *hash_location;
+	const u8 *hash_location;
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	/* RFC1323: H1. Apply PAWS check first. */
@@ -5382,6 +5395,10 @@ static int tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 		tcp_reset(sk);
 		return -1;
 	}
+
+	/* If valid: post process the received MPTCP options. */
+	if (tp->mpc)
+		mptcp_post_parse_options(tp, skb);
 
 	return 1;
 
@@ -5633,7 +5650,7 @@ EXPORT_SYMBOL(tcp_rcv_established);
 static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 					 struct tcphdr *th, unsigned len)
 {
-	u8 *hash_location;
+	const u8 *hash_location;
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct tcp_cookie_values *cvp = tp->cookie_values;
