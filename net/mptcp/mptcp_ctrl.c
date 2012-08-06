@@ -381,7 +381,7 @@ static int mptcp_backlog_rcv(struct sock *meta_sk, struct sk_buff *skb)
 
 	if (sk->sk_family == AF_INET)
 		return tcp_v4_do_rcv(sk, skb);
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	else
 		return tcp_v6_do_rcv(sk, skb);
 #endif
