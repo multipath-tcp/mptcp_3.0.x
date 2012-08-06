@@ -27,7 +27,6 @@
  *      2 of the License, or (at your option) any later version.
  */
 
-#include <linux/export.h>
 #include <linux/in6.h>
 #include <linux/kernel.h>
 

@@ -27,7 +27,6 @@
  *      2 of the License, or (at your option) any later version.
  */
 
-#include <linux/export.h>
 #include <linux/ip.h>
 #include <linux/list.h>
 #include <linux/skbuff.h>
