@@ -52,7 +52,7 @@
 #include <linux/sysctl.h>
 #endif
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 #define AF_INET_FAMILY(fam) ((fam) == AF_INET)
 #define AF_INET6_FAMILY(fam) ((fam) == AF_INET6)
 #else
@@ -385,7 +385,7 @@ int mptcp_alloc_mpcb(struct sock *master_sk)
 	memset(mpcb, 0, sizeof(struct mptcp_cb));
 
 	/* meta_sk inherits master sk */
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	mptcp_inherit_sk(master_sk, meta_sk, AF_INET6, GFP_ATOMIC);
 
 	if (AF_INET_FAMILY(master_sk->sk_family)) {
@@ -618,7 +618,7 @@ void mptcp_update_metasocket(struct sock *sk, struct mptcp_cb *mpcb)
 {
 
 	switch (sk->sk_family) {
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
 		/* If the socket is v4 mapped, we continue with v4 operations */
 		if (!mptcp_v6_is_v4_mapped(sk)) {
@@ -655,7 +655,7 @@ void mptcp_update_metasocket(struct sock *sk, struct mptcp_cb *mpcb)
 	case AF_INET:
 		tcp_sk(sk)->low_prio = mpcb->addr4[0].low_prio;
 		break;
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
 		tcp_sk(sk)->low_prio = mpcb->addr6[0].low_prio;
 		break;
