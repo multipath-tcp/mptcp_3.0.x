@@ -42,12 +42,6 @@
 #include <net/request_sock.h>
 #include <net/tcp.h>
 
-#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
-#define AF_INET_FAMILY(fam) ((fam) == AF_INET)
-#else
-#define AF_INET_FAMILY(fam) 1
-#endif
-
 struct proto mptcp_prot = {
 	.name			= "MPTCP",
 	.owner			= THIS_MODULE,
@@ -357,7 +351,7 @@ struct sock *mptcp_v4_search_req(const __be16 rport, const __be32 raddr,
 		if (ireq->rmt_port == rport &&
 		    ireq->rmt_addr == raddr &&
 		    ireq->loc_addr == laddr &&
-		    AF_INET_FAMILY(rev_mptcp_rsk(mtreq)->rsk_ops->family)) {
+		    rev_mptcp_rsk(mtreq)->rsk_ops->family == AF_INET) {
 			meta_sk = mpcb_meta_sk(mtreq->mpcb);
 			break;
 		}
