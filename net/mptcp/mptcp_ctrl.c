@@ -670,7 +670,7 @@ int mptcp_alloc_mpcb(struct sock *master_sk, __u64 remote_key)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 struct sock *mptcp_sk_clone(struct sock *sk, int family, const gfp_t priority)
 {
 	struct sock *newsk;

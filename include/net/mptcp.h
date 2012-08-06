@@ -1066,7 +1066,7 @@ static inline u8 mptcp_set_new_pathindex(struct mptcp_cb *mpcb)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 struct sock *mptcp_sk_clone(struct sock *sk, int family, const gfp_t priority);
 
 static inline int mptcp_v6_is_v4_mapped(struct sock *sk)
