@@ -976,7 +976,7 @@ static int mptcp_sub_send_fin(struct sock *sk)
 	int mss_now = mptcp_sysctl_mss();
 
 	if (tcp_send_head(sk) != NULL) {
-		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_FIN;
+		TCP_SKB_CB(skb)->flags |= TCPHDR_FIN;
 		TCP_SKB_CB(skb)->end_seq++;
 		tp->write_seq++;
 	} else {
