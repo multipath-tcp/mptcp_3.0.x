@@ -168,7 +168,7 @@ struct multipath_options {
 	u64	mptcp_recv_tmac;
 
 	struct	mptcp_rem4 addr4[MPTCP_MAX_ADDR];
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	struct	mptcp_rem6 addr6[MPTCP_MAX_ADDR];
 #endif
 };
@@ -178,7 +178,7 @@ struct mptcp_cb {
 	 * need to support IPv6 socket creation, the meta socket should be a
 	 * tcp6_sock.
 	 * The function pointers are set specifically. */
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	struct tcp6_sock tp;
 #else
 	struct tcp_sock tp;
@@ -229,7 +229,7 @@ struct mptcp_cb {
 	__u64	mptcp_loc_key;
 	__u32	mptcp_loc_token;
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	/* Alternative option pointers. If master sk is IPv4 these are IPv6 and
 	 * vice versa. Used to setup correct function pointers for sub sks of
 	 * different address family than the master socket.

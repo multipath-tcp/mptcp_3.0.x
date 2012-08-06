@@ -421,7 +421,7 @@ void mptcp_inherit_sk(struct sock *sk, struct sock *newsk, int family,
 	security_sk_clone(sk, newsk);
 #endif
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	if (is_meta_sk(sk) && sk->sk_family != family) {
 		newsk->sk_family = family;
 		newsk->sk_prot = newsk->sk_prot_creator =
@@ -506,7 +506,7 @@ void mptcp_inherit_sk(struct sock *sk, struct sock *newsk, int family,
 
 		__inet_inherit_port(sk, newsk);
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 		if (sk->sk_family == AF_INET) {
 			struct ipv6_pinfo *newnp;
 
@@ -551,7 +551,7 @@ void mptcp_inherit_sk(struct sock *sk, struct sock *newsk, int family,
 			sock_flag(newsk, SOCK_TIMESTAMPING_RX_SOFTWARE))
 			net_enable_timestamp();
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 		if (newsk->sk_family == AF_INET6)
 			inet_sk(newsk)->pinet6 =
 					&((struct tcp6_sock *)newsk)->inet6;
