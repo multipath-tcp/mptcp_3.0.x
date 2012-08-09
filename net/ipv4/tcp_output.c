@@ -2660,6 +2660,7 @@ static void tcp_connect_init(struct sock *sk)
 
 	if (!tp->window_clamp)
 		tp->window_clamp = dst_metric(dst, RTAX_WINDOW);
+
 	if (mptcp_doit(sk))
 		tp->advmss = mptcp_sysctl_mss();
 	else
@@ -2711,14 +2712,8 @@ static void tcp_connect_init(struct sock *sk)
 
 		tp->request_mptcp = 1;
 
-		if (is_master_tp(tp)) {
-			do {
-				get_random_bytes(&tp->mptcp_loc_key,
-						 sizeof(tp->mptcp_loc_key));
-				mptcp_key_sha1(tp->mptcp_loc_key,
-					       &tp->mptcp_loc_token, NULL);
-			} while (mptcp_find_token(tp->mptcp_loc_token));
-		}
+		if (is_master_tp(tp))
+			mptcp_connect_init(tp);
 	}
 #endif
 }
