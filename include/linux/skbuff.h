@@ -826,7 +826,7 @@ static inline struct sk_buff *skb_peek(struct sk_buff_head *list_)
  *	The reference count is not incremented and the reference is therefore
  *	volatile. Use with caution.
  */
-static inline struct sk_buff *skb_peek_tail(struct sk_buff_head *list_)
+static inline struct sk_buff *skb_peek_tail(const struct sk_buff_head *list_)
 {
 	struct sk_buff *list = ((struct sk_buff *)list_)->prev;
 	if (list == (struct sk_buff *)list_)

@@ -103,6 +103,8 @@
 #include <net/ip_fib.h>
 #include <net/inet_connection_sock.h>
 #include <net/tcp.h>
+#include <net/mptcp.h>
+#include <net/mptcp_v4.h>
 #include <net/udp.h>
 #include <net/udplite.h>
 #include <net/ping.h>
@@ -157,6 +159,15 @@ void inet_sock_destruct(struct sock *sk)
 		       sk->sk_state, sk);
 		return;
 	}
+
+	if (sk->sk_type == SOCK_STREAM && sk->sk_protocol == IPPROTO_TCP &&
+	    tcp_sk(sk)->mptcp)
+		/* Important to check here for mptcp, because mpc may be 0 but
+		 * mptcp still set (it's the case when calling tcp_disconnect
+		 * with the meta-sk).
+		 */
+		mptcp_sock_destruct(sk);
+
 	if (!sock_flag(sk, SOCK_DEAD)) {
 		pr_err("Attempt to release alive inet socket %p\n", sk);
 		return;
@@ -276,8 +287,7 @@ static inline int inet_netns_ok(struct net *net, int protocol)
  *	Create an inet socket.
  */
 
-static int inet_create(struct net *net, struct socket *sock, int protocol,
-		       int kern)
+int inet_create(struct net *net, struct socket *sock, int protocol, int kern)
 {
 	struct sock *sk;
 	struct inet_protosw *answer;
@@ -696,6 +706,25 @@ int inet_accept(struct socket *sock, struct socket *newsock, int flags)
 	lock_sock(sk2);
 
 	sock_rps_record_flow(sk2);
+
+	if (sk2->sk_protocol == IPPROTO_TCP && tcp_sk(sk2)->mpc) {
+		struct sock *sk_it = sk2;
+
+		mptcp_for_each_sk(tcp_sk(sk2)->mpcb, sk_it) {
+			if (!is_master_tp(tcp_sk(sk_it)))
+				sock_rps_record_flow(sk_it);
+		}
+
+		if (tcp_sk(sk2)->mpcb->master_sk) {
+			sk_it = tcp_sk(sk2)->mpcb->master_sk;
+
+			write_lock_bh(&sk_it->sk_callback_lock);
+			sk_it->sk_wq = newsock->wq;
+			sk_it->sk_socket = newsock;
+			write_unlock_bh(&sk_it->sk_callback_lock);
+		}
+	}
+
 	WARN_ON(!((1 << sk2->sk_state) &
 		  (TCPF_ESTABLISHED | TCPF_CLOSE_WAIT | TCPF_CLOSE)));
 
@@ -1668,9 +1697,15 @@ static int __init inet_init(void)
 	if (rc)
 		goto out_free_reserved_ports;
 
-	rc = proto_register(&udp_prot, 1);
+#ifdef CONFIG_MPTCP
+	rc = proto_register(&mptcp_prot, 1);
 	if (rc)
 		goto out_unregister_tcp_proto;
+#endif
+
+	rc = proto_register(&udp_prot, 1);
+	if (rc)
+		goto out_unregister_mptcp_proto;
 
 	rc = proto_register(&raw_prot, 1);
 	if (rc)
@@ -1771,7 +1806,11 @@ out_unregister_raw_proto:
 	proto_unregister(&raw_prot);
 out_unregister_udp_proto:
 	proto_unregister(&udp_prot);
+out_unregister_mptcp_proto:
+#ifdef CONFIG_MPTCP
+	proto_unregister(&mptcp_prot);
 out_unregister_tcp_proto:
+#endif
 	proto_unregister(&tcp_prot);
 out_free_reserved_ports:
 	kfree(sysctl_local_reserved_ports);

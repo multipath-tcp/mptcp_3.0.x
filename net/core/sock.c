@@ -136,15 +136,15 @@
  * Each address family might have different locking rules, so we have
  * one slock key per address family:
  */
-static struct lock_class_key af_family_keys[AF_MAX];
-static struct lock_class_key af_family_slock_keys[AF_MAX];
+struct lock_class_key af_family_keys[AF_MAX];
+struct lock_class_key af_family_slock_keys[AF_MAX];
 
 /*
  * Make lock validator output more readable. (we pre-construct these
  * strings build-time, so that runtime initialization of socket
  * locks is fast):
  */
-static const char *const af_family_key_strings[AF_MAX+1] = {
+char *const af_family_key_strings[AF_MAX+1] = {
   "sk_lock-AF_UNSPEC", "sk_lock-AF_UNIX"     , "sk_lock-AF_INET"     ,
   "sk_lock-AF_AX25"  , "sk_lock-AF_IPX"      , "sk_lock-AF_APPLETALK",
   "sk_lock-AF_NETROM", "sk_lock-AF_BRIDGE"   , "sk_lock-AF_ATMPVC"   ,
@@ -160,7 +160,7 @@ static const char *const af_family_key_strings[AF_MAX+1] = {
   "sk_lock-AF_IEEE802154", "sk_lock-AF_CAIF" , "sk_lock-AF_ALG"      ,
   "sk_lock-AF_MAX"
 };
-static const char *const af_family_slock_key_strings[AF_MAX+1] = {
+char *const af_family_slock_key_strings[AF_MAX+1] = {
   "slock-AF_UNSPEC", "slock-AF_UNIX"     , "slock-AF_INET"     ,
   "slock-AF_AX25"  , "slock-AF_IPX"      , "slock-AF_APPLETALK",
   "slock-AF_NETROM", "slock-AF_BRIDGE"   , "slock-AF_ATMPVC"   ,
@@ -176,7 +176,7 @@ static const char *const af_family_slock_key_strings[AF_MAX+1] = {
   "slock-AF_IEEE802154", "slock-AF_CAIF" , "slock-AF_ALG"      ,
   "slock-AF_MAX"
 };
-static const char *const af_family_clock_key_strings[AF_MAX+1] = {
+char *const af_family_clock_key_strings[AF_MAX+1] = {
   "clock-AF_UNSPEC", "clock-AF_UNIX"     , "clock-AF_INET"     ,
   "clock-AF_AX25"  , "clock-AF_IPX"      , "clock-AF_APPLETALK",
   "clock-AF_NETROM", "clock-AF_BRIDGE"   , "clock-AF_ATMPVC"   ,
@@ -197,7 +197,7 @@ static const char *const af_family_clock_key_strings[AF_MAX+1] = {
  * sk_callback_lock locking rules are per-address-family,
  * so split the lock classes by using a per-AF key:
  */
-static struct lock_class_key af_callback_keys[AF_MAX];
+struct lock_class_key af_callback_keys[AF_MAX];
 
 /* Take into consideration the size of the struct sk_buff overhead in the
  * determination of these values, since that is non-constant across
@@ -980,7 +980,7 @@ lenout:
  *
  * (We also register the sk_lock with the lock validator.)
  */
-static inline void sock_lock_init(struct sock *sk)
+void sock_lock_init(struct sock *sk)
 {
 	sock_lock_init_class_and_name(sk,
 			af_family_slock_key_strings[sk->sk_family],
@@ -1040,7 +1040,7 @@ void sk_prot_clear_portaddr_nulls(struct sock *sk, int size)
 }
 EXPORT_SYMBOL(sk_prot_clear_portaddr_nulls);
 
-static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
+struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
 		int family)
 {
 	struct sock *sk;
@@ -1890,7 +1890,7 @@ static void sock_def_wakeup(struct sock *sk)
 	rcu_read_unlock();
 }
 
-static void sock_def_error_report(struct sock *sk)
+void sock_def_error_report(struct sock *sk)
 {
 	struct socket_wq *wq;
 
