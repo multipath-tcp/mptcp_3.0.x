@@ -40,7 +40,6 @@
 #include <net/tcp_states.h>
 #include <net/transp_v6.h>
 
-#include <linux/kconfig.h>
 #include <linux/module.h>
 #include <linux/list.h>
 #include <linux/jhash.h>
