@@ -2254,7 +2254,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 
 		__skb_queue_purge(&tp->mpcb->reinject_queue);
 
-		if (!list_empty(&tp->tk_table)) {
+		if (tp->inside_tk_table) {
 			mptcp_hash_remove(tp);
 			reqsk_queue_destroy(&((struct inet_connection_sock *)tp->mpcb)->icsk_accept_queue);
 		}
@@ -2283,7 +2283,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 		tp->mpc = 0;
 		tp->mpcb = NULL;
 	} else {
-		if (!list_empty(&tp->tk_table))
+		if (tp->inside_tk_table)
 			mptcp_hash_remove(tp);
 	}
 #endif
