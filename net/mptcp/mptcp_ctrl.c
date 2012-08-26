@@ -242,7 +242,7 @@ void mptcp_key_sha1(u64 key, u32 *token, u64 *idsn)
 	if (token)
 		*token = mptcp_hashed_key[0];
 	if (idsn)
-		*idsn = ((u64)mptcp_hashed_key[3] << 32) | mptcp_hashed_key[4];
+		*idsn = *((u64 *)&mptcp_hashed_key[3]);
 }
 
 void mptcp_hmac_sha1(u8 *key_1, u8 *key_2, u8 *rand_1, u8 *rand_2,
@@ -738,6 +738,8 @@ void mptcp_sock_destruct(struct sock *sk)
 	tcp_sk(sk)->mptcp = NULL;
 
 	if (!is_meta_sk(sk) && !tcp_sk(sk)->was_meta_sk) {
+		rcu_assign_pointer(inet_sk(sk)->inet_opt, NULL);
+
 		/* Taken when mpcb pointer was set */
 		sock_put(mptcp_meta_sk(sk));
 	} else {
@@ -1035,7 +1037,7 @@ void mptcp_sub_close_wq(struct work_struct *work)
 
 	if (meta_sk->sk_shutdown == SHUTDOWN_MASK || sk->sk_state == TCP_CLOSE)
 		tcp_close(sk, 0);
-	else if (sk->sk_state != TCP_CLOSE && tcp_close_state(sk))
+	else if (tcp_close_state(sk))
 		tcp_send_fin(sk);
 
 exit:
@@ -1065,18 +1067,19 @@ void mptcp_sub_close(struct sock *sk, unsigned long delay)
 
 		/* If we are in user-context we can directly do the closing
 		 * procedure. No need to schedule a work-queue. */
-		if (!in_interrupt()) {
-			struct sock *meta_sk = mptcp_meta_sk(sk);
+		if (!in_softirq()) {
+			if (sock_flag(sk, SOCK_DEAD))
+				return;
 
 			if (!tcp_sk(sk)->mpc) {
 				tcp_close(sk, 0);
 				return;
 			}
 
-			if (meta_sk->sk_shutdown == SHUTDOWN_MASK ||
+			if (mptcp_meta_sk(sk)->sk_shutdown == SHUTDOWN_MASK ||
 			    sk->sk_state == TCP_CLOSE)
 				tcp_close(sk, 0);
-			else if (sk->sk_state != TCP_CLOSE && tcp_close_state(sk))
+			else if (tcp_close_state(sk))
 				tcp_send_fin(sk);
 
 			return;
@@ -1456,7 +1459,7 @@ struct sock *mptcp_check_req_child(struct sock *meta_sk, struct sock *child,
 	struct mptcp_cb *mpcb = mtreq->mpcb;
 	u8 hash_mac_check[20];
 
-	if (!mpcb->rx_opt.mptcp_opt_type == MPTCP_MP_JOIN_TYPE_ACK)
+	if (!mpcb->rx_opt.join_ack)
 		goto teardown;
 
 	mptcp_hmac_sha1((u8 *)&mpcb->rx_opt.mptcp_rem_key,

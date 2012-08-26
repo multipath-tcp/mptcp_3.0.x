@@ -3963,9 +3963,6 @@ static int tcp_fast_parse_options(struct sk_buff *skb, struct tcphdr *th,
 	__tcp_parse_options(skb, &tp->rx_opt, hvpp,
 			    mpcb ? &mpcb->rx_opt : NULL, 1, 1);
 
-	mptcp_path_array_check(mpcb);
-	mptcp_mp_fail_rcvd(mpcb, (struct sock *)tp, th);
-
 	return 1;
 }
 
@@ -5412,8 +5409,13 @@ static int tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 	}
 
 	/* If valid: post process the received MPTCP options. */
-	if (tp->mpc)
+	if (tp->mpc) {
 		mptcp_post_parse_options(tp, skb);
+
+		mptcp_path_array_check(tp->mpcb);
+		if (mptcp_mp_fail_rcvd(tp->mpcb, sk, th))
+			goto discard;
+	}
 
 	return 1;
 
@@ -6208,6 +6210,14 @@ out_syn_sent:
 						 */
 						inet_csk_reset_keepalive_timer(sk, tmo);
 					} else {
+						/* In case of MPTCP we cannot go into time-wait.
+						 * Because, we are still waiting for a subflow-fin.
+						 * This subflow-fin may carry the DATA_FIN who would
+						 * free the meta-sk.
+						 *
+						 * If we fully adapt time-wait-socks for MTPCP-awareness
+						 * we can change this here again.
+						 */
 						if (!tp->mpc) {
 							tcp_time_wait(sk, TCP_FIN_WAIT2, tmo);
 							goto discard;
