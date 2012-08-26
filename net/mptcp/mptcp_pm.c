@@ -785,7 +785,7 @@ static int mptcp_pm_seq_show(struct seq_file *seq, void *v)
 				seq_printf(seq, "[%pI4:%hu - %pI4:%hu] ",
 						&isk->inet_saddr, ntohs(isk->inet_sport),
 						&isk->inet_daddr, ntohs(isk->inet_dport));
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_MODULE_IPV6)
 			} else if (mpcb_meta_sk(mpcb)->sk_family == AF_INET6) {
 				seq_printf(seq, "[%pI6:%hu - %pI6:%hu] ",
 						&isk->pinet6->saddr, ntohs(isk->inet_sport),
