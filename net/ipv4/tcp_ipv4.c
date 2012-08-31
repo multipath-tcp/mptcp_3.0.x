@@ -1315,6 +1315,7 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 #ifdef CONFIG_MPTCP
 	if (tmp_opt.saw_mpc && mopt.is_mp_join) {
 		int ret;
+
 		ret = mptcp_do_join_short(skb, &mopt, &tmp_opt);
 		if (ret < 0) {
 			tcp_v4_send_reset(NULL, skb);
@@ -1786,6 +1787,7 @@ process:
 #ifdef CONFIG_MPTCP
 	if (!sk && th->syn && !th->ack) {
 		int ret;
+
 		ret = mptcp_lookup_join(skb);
 		if (ret) {
 			if (ret < 0) {
@@ -1916,6 +1918,7 @@ do_time_wait:
 #ifdef CONFIG_MPTCP
 		if (th->syn && !th->ack) {
 			int ret;
+
 			ret = mptcp_lookup_join(skb);
 			if (ret) {
 				/* As we come from do_time_wait, we are sure that
