@@ -117,7 +117,7 @@ static int mptcp_v6v4_send_synack(struct sock *sk, struct request_sock *req,
 		__tcp_v6_send_check(skb, &treq->loc_addr, &treq->rmt_addr);
 
 		ipv6_addr_copy(&fl6.daddr, &treq->rmt_addr);
-		err = ip6_xmit(sk, skb, &fl6, NULL, 0);
+		err = ip6_xmit(sk, skb, &fl6, NULL);
 		err = net_xmit_eval(err);
 	}
 
@@ -220,9 +220,6 @@ struct sock *mptcp_v6v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
 	tcp_sync_mss(newsk, dst_mtu(dst));
 	newtp->advmss = dst_metric_advmss(dst);
 	tcp_initialize_rcv_mss(newsk);
-	if (tcp_rsk(req)->snt_synack)
-		tcp_valid_rtt_meas(newsk,
-		    tcp_time_stamp - tcp_rsk(req)->snt_synack);
 	newtp->total_retrans = req->retrans;
 
 	newinet->inet_daddr = newinet->inet_saddr = LOOPBACK4_IPV6;
@@ -513,7 +510,7 @@ int mptcp_v6_do_rcv(struct sock *meta_sk, struct sk_buff *skb)
 		goto discard;
 
 	if (child != meta_sk) {
-		sock_rps_save_rxhash(child, skb);
+		sock_rps_save_rxhash(child, skb->rxhash);
 		/* We don't call tcp_child_process here, because we hold
 		 * already the meta-sk-lock and are sure that it is not owned
 		 * by the user.
