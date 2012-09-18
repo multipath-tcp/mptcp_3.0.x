@@ -526,7 +526,7 @@ int mptcp_do_join_short(struct sk_buff *skb, struct multipath_options *mopt,
 	} else {
 		if (skb->protocol == htons(ETH_P_IP)) {
 			mptcp_v4_do_rcv_join_syn(meta_sk, skb, tmp_opt);
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 		} else { /* IPv6 */
 			mptcp_v6_do_rcv_join_syn(meta_sk, skb, tmp_opt);
 #endif /* CONFIG_IPV6 */
