@@ -1518,6 +1518,7 @@ void mptcp_send_reset(struct sock *sk, struct sk_buff *skb)
 		mptcp_sub_close(sk, 0);
 	tcp_sk(sk)->mptcp->teardown = 1;
 
+	skb_dst_set(skb, sk_dst_get(sk));
 	if (sk->sk_family == AF_INET)
 		tcp_v4_send_reset(sk, skb);
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
