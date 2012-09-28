@@ -2160,7 +2160,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 
 #ifdef CONFIG_MPTCP
 	if (is_meta_sk(sk)) {
-		struct sock *subsk;
+		struct sock *subsk, *tmpsk;
 		struct tcp_sock *tp = tcp_sk(sk);
 
 		__skb_queue_purge(&tp->mpcb->reinject_queue);
@@ -2171,7 +2171,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 		}
 
 		local_bh_disable();
-		mptcp_for_each_sk(tp->mpcb, subsk) {
+		mptcp_for_each_sk_safe(tp->mpcb, subsk, tmpsk) {
 			if (tcp_sk(subsk)->send_mp_fclose)
 				continue;
 
