@@ -2193,7 +2193,8 @@ static void tcp_enter_frto_loss(struct sock *sk, int allowed_segments, int flag)
 	tp->reordering = min_t(unsigned int, tp->reordering,
 			       sysctl_tcp_reordering);
 	tcp_set_ca_state(sk, TCP_CA_Loss);
-	mptcp_retransmit_queue(sk);
+	if (tp->mpc)
+		mptcp_reinject_data(sk, 1);
 	tp->high_seq = tp->snd_nxt;
 	TCP_ECN_queue_cwr(tp);
 
@@ -2273,7 +2274,8 @@ void tcp_enter_loss(struct sock *sk, int how)
 	tp->reordering = min_t(unsigned int, tp->reordering,
 			       sysctl_tcp_reordering);
 	tcp_set_ca_state(sk, TCP_CA_Loss);
-	mptcp_retransmit_queue(sk);
+	if (tp->mpc)
+		mptcp_reinject_data(sk, 1);
 	tp->high_seq = tp->snd_nxt;
 	TCP_ECN_queue_cwr(tp);
 	/* Abort F-RTO algorithm if one is in progress */
@@ -2962,7 +2964,8 @@ void tcp_simple_retransmit(struct sock *sk)
 		tp->prior_ssthresh = 0;
 		tp->undo_marker = 0;
 		tcp_set_ca_state(sk, TCP_CA_Loss);
-		mptcp_retransmit_queue(sk);
+		if (tp->mpc)
+			mptcp_reinject_data(sk, 1);
 	}
 	tcp_xmit_retransmit_queue(sk);
 }
