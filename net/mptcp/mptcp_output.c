@@ -552,7 +552,7 @@ int mptcp_write_wakeup(struct sock *meta_sk)
 		TCP_SKB_CB(subskb)->when = tcp_time_stamp;
 		err = tcp_transmit_skb(subsk, subskb, 1, GFP_ATOMIC);
 		if (unlikely(err)) {
-			if (TCP_SKB_CB(subskb)->tcp_flags & TCPHDR_FIN) {
+			if (TCP_SKB_CB(subskb)->flags & TCPHDR_FIN) {
 				/* If it is a subflow-fin we must leave it on the
 				 * subflow-send-queue, so that the probe-timer
 				 * can retransmit it.
@@ -1667,4 +1667,22 @@ void mptcp_ack_handler(unsigned long data)
 out_unlock:
 	bh_unlock_sock(meta_sk);
 	sock_put(sk);
+}
+
+/* Modify values to an mptcp-level for the initial window of new subflows */
+void mptcp_select_initial_window(int *__space, __u32 *window_clamp,
+			         const struct sock *sk)
+{
+	struct sock *meta_sk = mptcp_meta_sk(sk);
+
+	/* If the user has set a limit - take this one. Else we take the
+	 * maximum. Per-destination metrics don't make sense as the window
+	 * is at the meta-level.
+	 */
+	if (meta_sk->sk_userlocks & SOCK_RCVBUF_LOCK)
+		*window_clamp = tcp_full_space(meta_sk);
+	else
+		*window_clamp = (65535 << 14);
+
+	*__space = tcp_space(meta_sk);
 }
