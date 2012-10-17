@@ -987,7 +987,7 @@ static void tcp_set_skb_tso_segs(const struct sock *sk, struct sk_buff *skb,
 /* When a modification to fackets out becomes necessary, we need to check
  * skb is counted to fackets_out or not.
  */
-static void tcp_adjust_fackets_out(struct sock *sk, struct sk_buff *skb,
+static void tcp_adjust_fackets_out(struct sock *sk, const struct sk_buff *skb,
 				   int decr)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1002,7 +1002,7 @@ static void tcp_adjust_fackets_out(struct sock *sk, struct sk_buff *skb,
 /* Pcount in the middle of the write queue got changed, we need to do various
  * tweaks to fix counters
  */
-static void tcp_adjust_pcount(struct sock *sk, struct sk_buff *skb, int decr)
+void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb, int decr)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
