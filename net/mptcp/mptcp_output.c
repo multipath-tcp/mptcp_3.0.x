@@ -369,7 +369,7 @@ static void mptcp_combine_dfin(struct sk_buff *skb, struct sock *meta_sk,
 	all_acked = (meta_tp->snd_una == (meta_tp->write_seq - 1));
 
 	if ((all_empty || all_acked) && tcp_close_state(subsk))
-		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_FIN;
+		TCP_SKB_CB(skb)->flags |= TCPHDR_FIN;
 }
 
 /**
@@ -835,7 +835,7 @@ retry:
 		TCP_SKB_CB(subskb)->when = tcp_time_stamp;
 
 		if (unlikely(tcp_transmit_skb(subsk, subskb, 1, gfp))) {
-			if (TCP_SKB_CB(subskb)->tcp_flags & TCPHDR_FIN) {
+			if (TCP_SKB_CB(subskb)->flags & TCPHDR_FIN) {
 				/* If it is a subflow-fin we must leave it on the
 				 * subflow-send-queue, so that the probe-timer
 				 * can retransmit it.
@@ -897,9 +897,6 @@ retry:
 
 		tcp_minshall_update(meta_tp, mss_now, skb);
 		sent_pkts += tcp_skb_pcount(skb);
-
-		if (inet_csk(subsk)->icsk_ca_state == TCP_CA_Recovery)
-			subtp->prr_out += tcp_skb_pcount(skb);
 
 		tcp_cwnd_validate(subsk);
 
