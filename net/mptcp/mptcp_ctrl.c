@@ -571,7 +571,7 @@ int mptcp_alloc_mpcb(struct sock *meta_sk, __u64 remote_key, u32 window)
 		newnp->ipv6_fl_list = NULL;
 		newnp->opt = NULL;
 		newnp->pktoptions = NULL;
-		newnp->rxpmtu = NULL;
+		xchg(&newnp->rxpmtu, NULL);
 	} else if (meta_sk->sk_family == AF_INET6){
 		struct ipv6_pinfo *newnp;
 
