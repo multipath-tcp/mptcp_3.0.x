@@ -1806,7 +1806,6 @@ process:
 				return 0;
 			}
 		}
-
 	}
 
 	/* Is there a pending request sock for this segment ? */
@@ -1930,7 +1929,6 @@ do_time_wait:
 					return 0;
 				}
 			}
-
 		}
 #endif
 		/* Fall through to ACK */

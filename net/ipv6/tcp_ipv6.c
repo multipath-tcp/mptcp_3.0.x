@@ -1995,7 +1995,6 @@ do_time_wait:
 					return 0;
 				}
 			}
-
 		}
 #endif
 		/* Fall through to ACK */
