@@ -539,7 +539,7 @@ static inline void syn_flood_warning(struct sk_buff *skb)
 		       "Dropping request.\n", ntohs(tcp_hdr(skb)->dest));
 }
 
-static void tcp_v6_reqsk_destructor(struct request_sock *req)
+void tcp_v6_reqsk_destructor(struct request_sock *req)
 {
 	kfree_skb(inet6_rsk(req)->pktopts);
 }
