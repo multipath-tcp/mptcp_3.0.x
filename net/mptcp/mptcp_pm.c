@@ -570,7 +570,7 @@ next_subflow:
 		}
 	}
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	mptcp_for_each_bit_set(mpcb->rx_opt.rem6_bits, i) {
 		struct mptcp_rem6 *rem = &mpcb->rx_opt.addr6[i];
 
