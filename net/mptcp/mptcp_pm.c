@@ -950,9 +950,8 @@ int mptcp_pm_addr_event_handler(unsigned long event, void *ptr, int family)
 	return NOTIFY_DONE;
 }
 
-/*
- *	Output /proc/net/mptcp_pm
- */
+#ifdef CONFIG_SYSCTL
+/* Output /proc/net/mptcp_pm */
 static int mptcp_pm_seq_show(struct seq_file *seq, void *v)
 {
 	struct tcp_sock *meta_tp;
@@ -1027,6 +1026,7 @@ static __net_initdata struct pernet_operations mptcp_pm_proc_ops = {
 	.init = mptcp_pm_proc_init_net,
 	.exit = mptcp_pm_proc_exit_net,
 };
+#endif
 
 /* General initialization of MPTCP_PM */
 int mptcp_pm_init(void)
@@ -1041,9 +1041,11 @@ int mptcp_pm_init(void)
 	spin_lock_init(&mptcp_reqsk_hlock);
 	spin_lock_init(&mptcp_tk_hashlock);
 
+#ifdef CONFIG_SYSCTL
 	ret = register_pernet_subsys(&mptcp_pm_proc_ops);
 	if (ret)
 		goto out;
+#endif
 
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	ret = mptcp_pm_v6_init();
@@ -1062,7 +1064,9 @@ mptcp_pm_v4_failed:
 	mptcp_pm_v6_undo();
 #endif
 mptcp_pm_v6_failed:
+#ifdef CONFIG_SYSCTL
 	unregister_pernet_subsys(&mptcp_pm_proc_ops);
+#endif
 	goto out;
 }
 
