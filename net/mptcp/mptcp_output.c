@@ -1516,14 +1516,15 @@ void mptcp_init_ack_timer(struct sock *sk)
 			(unsigned long)sk);
 }
 
-static int __mptcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
+static int __mptcp_retransmit_skb(struct sock *sk, struct sk_buff *skb,
+				  int clone_it)
 {
 	if (inet_csk(sk)->icsk_af_ops->rebuild_header(sk))
 		return -EHOSTUNREACH; /* Routing failure or similar */
 
 	TCP_SKB_CB(skb)->when = tcp_time_stamp;
 
-	return tcp_transmit_skb(sk, skb, 1, GFP_ATOMIC);
+	return tcp_transmit_skb(sk, skb, clone_it, GFP_ATOMIC);
 }
 
 void mptcp_ack_retransmit_timer(struct sock *sk)
@@ -1546,7 +1547,7 @@ void mptcp_ack_retransmit_timer(struct sock *sk)
 
 	icsk->icsk_retransmits++;
 	mptcp_include_mpc(tp);
-	err = __mptcp_retransmit_skb(sk, buff);
+	err = __mptcp_retransmit_skb(sk, buff, 0);
 
 	if (err > 0) {
 		/* Retransmission failed because of local congestion,
@@ -1562,7 +1563,6 @@ void mptcp_ack_retransmit_timer(struct sock *sk)
 		sk_stop_timer(sk, &tp->mptcp->mptcp_ack_timer);
 		tcp_send_active_reset(sk, GFP_ATOMIC);
 		mptcp_sub_force_close(sk);
-		kfree_skb(buff);
 		return;
 	}
 
@@ -1671,7 +1671,7 @@ static int mptcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 		}
 	}
 
-	err = __mptcp_retransmit_skb(sk, skb);
+	err = __mptcp_retransmit_skb(sk, skb, 1);
 	if (err == 0) {
 		/* Update global TCP statistics. */
 		TCP_INC_STATS(sock_net(meta_sk), TCP_MIB_RETRANSSEGS);
