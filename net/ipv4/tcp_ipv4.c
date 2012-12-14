@@ -1576,7 +1576,8 @@ exit:
 	NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_LISTENDROPS);
 	return NULL;
 put_and_exit:
-	sock_put(newsk);
+	inet_csk_prepare_forced_close(newsk);
+	tcp_done(newsk);
 	goto exit;
 }
 EXPORT_SYMBOL(tcp_v4_syn_recv_sock);
