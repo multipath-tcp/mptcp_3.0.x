@@ -6023,6 +6023,8 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		tcp_urg(sk, skb, th);
 		__kfree_skb(skb);
 		tcp_data_snd_check(sk);
+		if (tp->mpc && is_master_tp(tp))
+			bh_unlock_sock(sk);
 		return 0;
 	}
 
