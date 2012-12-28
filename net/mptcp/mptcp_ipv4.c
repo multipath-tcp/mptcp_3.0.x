@@ -558,7 +558,7 @@ void mptcp_pm_addr4_event_handler(struct in_ifaddr *ifa, unsigned long event,
 
 	/* Look for the address among the local addresses */
 	mptcp_for_each_bit_set(mpcb->loc4_bits, i) {
-		if (mpcb->addr4[i].addr.s_addr == ifa->ifa_local)
+		if (mpcb->locaddr4[i].addr.s_addr == ifa->ifa_local)
 			goto found;
 	}
 
@@ -573,8 +573,8 @@ void mptcp_pm_addr4_event_handler(struct in_ifaddr *ifa, unsigned long event,
 		}
 
 		/* update this mpcb */
-		mpcb->addr4[i].addr.s_addr = ifa->ifa_local;
-		mpcb->addr4[i].id = i;
+		mpcb->locaddr4[i].addr.s_addr = ifa->ifa_local;
+		mpcb->locaddr4[i].id = i;
 		mpcb->loc4_bits |= (1 << i);
 		mpcb->next_v4_index = i + 1;
 		/* re-send addresses */
@@ -608,7 +608,7 @@ found:
 		mpcb->loc4_bits &= ~(1 << i);
 
 		/* Force sending directly the REMOVE_ADDR option */
-		mpcb->remove_addrs |= (1 << mpcb->addr4[i].id);
+		mpcb->remove_addrs |= (1 << mpcb->locaddr4[i].id);
 		sk = mptcp_select_ack_sock(mpcb->meta_sk, 0);
 		if (sk)
 			tcp_send_ack(sk);
