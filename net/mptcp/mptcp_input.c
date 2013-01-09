@@ -1012,9 +1012,6 @@ int mptcp_data_ack(struct sock *sk, const struct sk_buff *skb)
 	u16 data_len = 0;
 	__u32 *ptr;
 
-	if (!tp->mpc)
-		return 0;
-
 	/* Something got acked - subflow is operational again */
 	tp->pf = 0;
 
