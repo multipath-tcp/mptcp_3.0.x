@@ -1291,8 +1291,8 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 {
 	struct tcp_extend_values tmp_ext;
 	struct tcp_options_received tmp_opt;
-	struct multipath_options mopt;
 	const u8 *hash_location;
+	struct mptcp_options_received mopt;
 	struct request_sock *req;
 	struct inet_request_sock *ireq;
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1309,21 +1309,12 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 	tcp_clear_options(&tmp_opt);
 	tmp_opt.mss_clamp = TCP_MSS_DEFAULT;
 	tmp_opt.user_mss  = tp->rx_opt.user_mss;
-	mopt.dss_csum = 0;
 	mptcp_init_mp_opt(&mopt);
 	tcp_parse_options(skb, &tmp_opt, &hash_location, &mopt, 0);
 
 #ifdef CONFIG_MPTCP
-	if (tmp_opt.saw_mpc && mopt.is_mp_join) {
-		int ret;
-
-		ret = mptcp_do_join_short(skb, &mopt, &tmp_opt);
-		if (ret < 0) {
-			tcp_v4_send_reset(NULL, skb);
-			goto drop;
-		}
-		return -ret;
-	}
+	if (mopt.is_mp_join)
+		return mptcp_do_join_short(skb, &mopt, &tmp_opt, sock_net(sk));
 #endif
 	/* Never answer to SYNs send to broadcast or multicast */
 	if (skb_rtable(skb)->rt_flags & (RTCF_BROADCAST | RTCF_MULTICAST))
@@ -1353,7 +1344,7 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 		goto drop;
 
 #ifdef CONFIG_MPTCP
-	if (tmp_opt.saw_mpc) {
+	if (mopt.saw_mpc) {
 		req = inet_reqsk_alloc(&mptcp_request_sock_ops);
 
 		if (!req)
@@ -1361,6 +1352,7 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 
 		mptcp_rsk(req)->mpcb = NULL;
 		mptcp_rsk(req)->dss_csum = mopt.dss_csum;
+		mptcp_rsk(req)->collide_tk.pprev = NULL;
 	} else
 #endif
 		req = inet_reqsk_alloc(&tcp_request_sock_ops);
@@ -1414,7 +1406,7 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 	tmp_opt.tstamp_ok = tmp_opt.saw_tstamp;
 	tcp_openreq_init(req, &tmp_opt, skb);
 
-	if (tcp_rsk(req)->saw_mpc)
+	if (mopt.saw_mpc)
 		mptcp_reqsk_new_mptcp(req, &tmp_opt, &mopt);
 
 	ireq = inet_rsk(req);
@@ -1590,7 +1582,8 @@ exit:
 	NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_LISTENDROPS);
 	return NULL;
 put_and_exit:
-	sock_put(newsk);
+	inet_csk_prepare_forced_close(newsk);
+	tcp_done(newsk);
 	goto exit;
 }
 EXPORT_SYMBOL(tcp_v4_syn_recv_sock);
@@ -1613,15 +1606,11 @@ struct sock *tcp_v4_hnd_req(struct sock *sk, struct sk_buff *skb)
 	if (nsk) {
 		if (nsk->sk_state != TCP_TIME_WAIT) {
 			/* Don't lock again the meta-sk. It has been locked
-			 * before mptcp_v6_do_rcv.
+			 * before mptcp_v4_do_rcv.
 			 */
-			if (is_meta_sk(sk))
-				return nsk;
-
-			if (tcp_sk(nsk)->mpc)
+			if (tcp_sk(nsk)->mpc && !is_meta_sk(sk))
 				bh_lock_sock(mptcp_meta_sk(nsk));
-			else
-				bh_lock_sock(nsk);
+			bh_lock_sock(nsk);
 
 			return nsk;
 
@@ -1792,25 +1781,18 @@ process:
 
 #ifdef CONFIG_MPTCP
 	if (!sk && th->syn && !th->ack) {
-		int ret;
+		int ret = mptcp_lookup_join(skb, NULL);
 
-		ret = mptcp_lookup_join(skb);
-		if (ret) {
-			if (ret < 0) {
-				tcp_v4_send_reset(NULL, skb);
-				if (sk)
-					sock_put(sk);
-				goto discard_it;
-			} else {
-				if (sk)
-					sock_put(sk);
-				return 0;
-			}
+		if (ret < 0) {
+			tcp_v4_send_reset(NULL, skb);
+			goto discard_it;
+		} else if (ret > 0) {
+			return 0;
 		}
 	}
 
 	/* Is there a pending request sock for this segment ? */
-	if ((!sk || sk->sk_state == TCP_LISTEN) && mptcp_check_req(skb)) {
+	if ((!sk || sk->sk_state == TCP_LISTEN) && mptcp_check_req(skb, net)) {
 		if (sk)
 			sock_put(sk);
 		return 0;
@@ -1913,22 +1895,13 @@ do_time_wait:
 		}
 #ifdef CONFIG_MPTCP
 		if (th->syn && !th->ack) {
-			int ret;
+			int ret = mptcp_lookup_join(skb, inet_twsk(sk));
 
-			ret = mptcp_lookup_join(skb);
-			if (ret) {
-				/* As we come from do_time_wait, we are sure that
-				 * sk exists.
-				 */
-				inet_twsk_deschedule(inet_twsk(sk), &tcp_death_row);
-				inet_twsk_put(inet_twsk(sk));
-
-				if (ret < 0) {
-					tcp_v4_send_reset(NULL, skb);
-					goto discard_it;
-				} else {
-					return 0;
-				}
+			if (ret < 0) {
+				tcp_v4_send_reset(NULL, skb);
+				goto discard_it;
+			} else if (ret > 0) {
+				return 0;
 			}
 		}
 #endif

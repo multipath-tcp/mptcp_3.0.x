@@ -734,7 +734,7 @@ static unsigned int tcp_xmit_size_goal(struct sock *sk, u32 mss_now,
 
 	xmit_size_goal = mss_now;
 
-	if (large_allowed && sk_can_gso(sk)) {
+	if (large_allowed && sk_can_gso(sk) && !tp->mpc) {
 		xmit_size_goal = ((sk->sk_gso_max_size - 1) -
 				  inet_csk(sk)->icsk_af_ops->net_header_len -
 				  inet_csk(sk)->icsk_ext_hdr_len -
@@ -763,7 +763,10 @@ static int tcp_send_mss(struct sock *sk, int *size_goal, int flags)
 {
 	int mss_now;
 
-	mss_now = tcp_current_mss(sk);
+	if (tcp_sk(sk)->mpc)
+		mss_now = mptcp_current_mss(sk);
+	else
+		mss_now = tcp_current_mss(sk);
 	*size_goal = tcp_xmit_size_goal(sk, mss_now, !(flags & MSG_OOB));
 
 	return mss_now;
@@ -907,6 +910,9 @@ static inline int select_size(struct sock *sk, int sg)
 	struct tcp_sock *tp = tcp_sk(sk);
 	int tmp = tp->mss_cache;
 
+	if (tp->mpc)
+		tmp = mptcp_select_size(sk);
+
 	if (sg) {
 		if (sk_can_gso(sk))
 			tmp = 0;
@@ -955,14 +961,7 @@ int tcp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	/* This should be in poll */
 	clear_bit(SOCK_ASYNC_NOSPACE, &sk->sk_socket->flags);
 
-
-	/* If we want to support TSO later, we'll need
-	 * to define xmit_size_goal to something much larger
-	 */
-	if (tp->mpc)
-		mss_now = size_goal = mptcp_sysctl_mss();
-	else
-		mss_now = tcp_send_mss(sk, &size_goal, flags);
+	mss_now = tcp_send_mss(sk, &size_goal, flags);
 
 	/* Ok commence sending. */
 	iovlen = msg->msg_iovlen;
@@ -1021,7 +1020,7 @@ new_segment:
 				 * In case of mptcp, hw-csum's will be handled
 				 * later in mptcp_write_xmit.
 				 */
-				if (((tp->mpc && !tp->mpcb->rx_opt.dss_csum) || !tp->mpc) &&
+				if (((tp->mpc && !tp->mpcb->dss_csum) || !tp->mpc) &&
 				    (tp->mpc || sk->sk_route_caps & NETIF_F_ALL_CSUM))
 					skb->ip_summed = CHECKSUM_PARTIAL;
 
@@ -1144,8 +1143,7 @@ wait_for_memory:
 			if ((err = sk_stream_wait_memory(sk, &timeo)) != 0)
 				goto do_error;
 
-			if (!tp->mpc)
-				mss_now = tcp_send_mss(sk, &size_goal, flags);
+			mss_now = tcp_send_mss(sk, &size_goal, flags);
 		}
 	}
 
@@ -3318,6 +3316,7 @@ void tcp_done(struct sock *sk)
 	if (sk->sk_state == TCP_SYN_SENT || sk->sk_state == TCP_SYN_RECV)
 		TCP_INC_STATS_BH(sock_net(sk), TCP_MIB_ATTEMPTFAILS);
 
+	WARN_ON(sk->sk_state == TCP_CLOSE);
 	tcp_set_state(sk, TCP_CLOSE);
 
 	/* If it is a meta-sk sending mp_fclose we have to maintain the

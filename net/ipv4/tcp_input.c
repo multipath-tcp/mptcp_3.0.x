@@ -3730,9 +3730,11 @@ static int tcp_ack(struct sock *sk, struct sk_buff *skb, int flag)
 		tcp_ca_event(sk, CA_EVENT_SLOW_ACK);
 	}
 
-	flag |= mptcp_data_ack(sk, skb);
-	if (unlikely(tp->mp_killed))
-		return -1;
+	if (tp->mpc) {
+		flag |= mptcp_data_ack(sk, skb);
+		if (unlikely(tp->mp_killed))
+			return -1;
+	}
 
 	/* We passed data and got it acked, remove any soft error
 	 * log. Something worked...
@@ -3805,7 +3807,7 @@ old_ack:
  */
 static void __tcp_parse_options(const struct sk_buff *skb,
 				struct tcp_options_received *opt_rx,
-				const u8 **hvpp, struct multipath_options *mopt,
+				const u8 **hvpp, struct mptcp_options_received *mopt,
 				int estab, int fast)
 {
 	unsigned char *ptr;
@@ -3932,7 +3934,7 @@ static void __tcp_parse_options(const struct sk_buff *skb,
 }
 
 void tcp_parse_options(const struct sk_buff *skb, struct tcp_options_received *opt_rx,
-		       const u8 **hvpp, struct multipath_options *mopt, int estab)
+		       const u8 **hvpp, struct mptcp_options_received *mopt, int estab)
 {
 	__tcp_parse_options(skb, opt_rx, hvpp, mopt, estab, 0);
 }
@@ -3972,7 +3974,7 @@ static int tcp_fast_parse_options(struct sk_buff *skb, struct tcphdr *th,
 			return 1;
 	}
 	__tcp_parse_options(skb, &tp->rx_opt, hvpp,
-			    tp->mpc ? &tp->mpcb->rx_opt : NULL, 1, 1);
+			    tp->mpc ? &tp->mptcp->rx_opt : NULL, 1, 1);
 
 	return 1;
 }
@@ -5015,12 +5017,12 @@ static int tcp_should_expand_sndbuf(struct sock *sk)
 
 			/* Backup-flows have to be counted - if there is no other
 			 * subflow we take the backup-flow into account. */
-			if (tp_it->rx_opt.low_prio || tp_it->mptcp->low_prio) {
+			if (tp_it->mptcp->rx_opt.low_prio || tp_it->mptcp->low_prio) {
 				cnt_backups++;
 			}
 
 			if (tp_it->packets_out < tp_it->snd_cwnd) {
-				if (tp_it->rx_opt.low_prio || tp_it->mptcp->low_prio) {
+				if (tp_it->mptcp->rx_opt.low_prio || tp_it->mptcp->low_prio) {
 					backup_available = 1;
 					continue;
 				}
@@ -5029,7 +5031,7 @@ static int tcp_should_expand_sndbuf(struct sock *sk)
 		}
 
 		/* Backup-flow is available for sending - update send-buffer */
-		if (cnt_backups == tp->mpcb->cnt_subflows && backup_available)
+		if (tp->mpcb->cnt_established == cnt_backups && backup_available)
 			return 1;
 		return 0;
 	}
@@ -5395,7 +5397,15 @@ syn_challenge:
 
 	/* If valid: post process the received MPTCP options. */
 	if (tp->mpc) {
-		mptcp_post_parse_options(tp, skb);
+		/* We have to acknowledge retransmissions of the third
+		 * ack.
+		 */
+		if (tp->mptcp->rx_opt.join_ack) {
+			tcp_send_delayed_ack(sk);
+			tp->mptcp->rx_opt.join_ack = 0;
+		}
+
+		mptcp_post_parse_options(sk, skb);
 
 		mptcp_path_array_check(mptcp_meta_sk(sk));
 		/* Socket may have been mp_killed by a REMOVE_ADDR */
@@ -5434,7 +5444,7 @@ discard:
  *	tcp_data_queue when everything is OK.
  */
 int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
-			struct tcphdr *th, unsigned len)
+			struct tcphdr *th, unsigned int len)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
@@ -5661,12 +5671,11 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct tcp_cookie_values *cvp = tp->cookie_values;
 	int saved_clamp = tp->rx_opt.mss_clamp;
-	struct multipath_options mopt;
-	struct mptcp_cb *mpcb = tp->mpc ? tp->mpcb : NULL;
+	struct mptcp_options_received mopt;
 	mptcp_init_mp_opt(&mopt);
 
 	tcp_parse_options(skb, &tp->rx_opt, &hash_location,
-			  mpcb ? &tp->mpcb->rx_opt : &mopt, 0);
+			  tp->mpc ? &tp->mptcp->rx_opt : &mopt, 0);
 
 	if (th->ack) {
 		/* rfc793:
@@ -5716,14 +5725,15 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 #ifdef CONFIG_MPTCP
 		if (!is_master_tp(tp)) {
 			u8 hash_mac_check[20];
+			struct mptcp_cb *mpcb = tp->mpcb;
 
 			mptcp_hmac_sha1((u8 *)&mpcb->mptcp_rem_key,
 					(u8 *)&mpcb->mptcp_loc_key,
-					(u8 *)&tp->rx_opt.mptcp_recv_nonce,
+					(u8 *)&tp->mptcp->rx_opt.mptcp_recv_nonce,
 					(u8 *)&tp->mptcp->mptcp_loc_nonce,
 					(u32 *)hash_mac_check);
 			if (memcmp(hash_mac_check,
-				   (char *)&tp->rx_opt.mptcp_recv_tmac, 8)) {
+				   (char *)&tp->mptcp->rx_opt.mptcp_recv_tmac, 8)) {
 				sock_orphan(sk);
 				tp->mptcp->teardown = 1;
 				goto reset_and_undo;
@@ -5733,7 +5743,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 			 * until the 4th ack arrives.
 			 */
 			tp->mptcp->pre_established = 1;
-		} else if (tp->rx_opt.saw_mpc && tp->request_mptcp) {
+		} else if (mopt.saw_mpc && tp->request_mptcp) {
 			if (mptcp_create_master_sk(sk, mopt.mptcp_rem_key,
 						   ntohs(th->window)))
 				goto discard;
@@ -5745,18 +5755,12 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 			 * by tcp_connect for the SYN
 			 */
 			tp->mptcp->snt_isn = tp->snd_nxt - 1;
-
-			mpcb = tp->mpcb;
-
-			mpcb->rx_opt.dss_csum = mopt.dss_csum;
-			mpcb->rx_opt.mpcb = mpcb;
-			mpcb->rx_opt.list_rcvd = 1;
+			tp->mpcb->dss_csum = mopt.dss_csum;
 
 			sk_set_socket(sk, mptcp_meta_sk(sk)->sk_socket);
 			sk->sk_wq = mptcp_meta_sk(sk)->sk_wq;
 
 			mptcp_update_metasocket(sk, mptcp_meta_sk(sk));
-			mptcp_path_array_check(mptcp_meta_sk(sk));
 
 			 /* hold in mptcp_inherit_sk due to initialization to 2 */
 			sock_put(sk);
@@ -5766,7 +5770,10 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 			if (tp->inside_tk_table)
 				mptcp_hash_remove(tp);
 		}
-		mptcp_include_mpc(tp);
+		if (tp->mpc) {
+			tp->mptcp->rcv_isn = TCP_SKB_CB(skb)->seq;
+			tp->mptcp->include_mpc = 1;
+		}
 #endif
 
 		/* rfc793:
@@ -5787,16 +5794,13 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 * move to established.
 		 */
 #ifdef CONFIG_MPTCP
-		if (tp->mpc) {
-			tp->rx_opt.rcv_isn = TCP_SKB_CB(skb)->seq;
-
-			if (!is_master_tp(tp))
-				/* Timer for repeating the ACK until an answer
-				 * arrives. Used only when establishing an additional
-				 * subflow inside of an MPTCP connection.
-				 */
-				sk_reset_timer(sk, &tp->mptcp->mptcp_ack_timer,
-					       jiffies + icsk->icsk_rto);
+		if (tp->mpc && !is_master_tp(tp)) {
+			/* Timer for repeating the ACK until an answer
+			 * arrives. Used only when establishing an additional
+			 * subflow inside of an MPTCP connection.
+			 */
+			sk_reset_timer(sk, &tp->mptcp->mptcp_ack_timer,
+				       jiffies + icsk->icsk_rto);
 		}
 #endif
 		tp->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
@@ -5817,11 +5821,15 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 			tp->rx_opt.tstamp_ok	   = 1;
 			tp->tcp_header_len =
 				sizeof(struct tcphdr) + TCPOLEN_TSTAMP_ALIGNED;
-			if (!tp->mpc)
-				tp->advmss -= TCPOLEN_TSTAMP_ALIGNED;
+			tp->advmss	    -= TCPOLEN_TSTAMP_ALIGNED;
 			tcp_store_ts_recent(tp);
 		} else {
 			tp->tcp_header_len = sizeof(struct tcphdr);
+		}
+
+		if (tp->mpc) {
+			tp->tcp_header_len += MPTCP_SUB_LEN_DSM_ALIGN;
+			tp->advmss -= MPTCP_SUB_LEN_DSM_ALIGN;
 		}
 
 		if (tcp_is_sack(tp) && sysctl_tcp_fack)
@@ -5955,6 +5963,11 @@ discard:
 			tp->tcp_header_len = sizeof(struct tcphdr);
 		}
 
+		if (tp->mpc) {
+			tp->tcp_header_len += MPTCP_SUB_LEN_DSM_ALIGN;
+			tp->advmss -= MPTCP_SUB_LEN_DSM_ALIGN;
+		}
+
 		tp->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
 		tp->rcv_wup = TCP_SKB_CB(skb)->seq + 1;
 
@@ -6030,21 +6043,10 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 			goto discard;
 
 		if (th->syn) {
-			int res;
-
 			if (th->fin)
 				goto discard;
-			res = icsk->icsk_af_ops->conn_request(sk, skb);
-			if (res < 0) {
-				/* MPTCP - if the skb has been put in the
-				 * backlog-queue, conn_request returns -2.
-				 * By returning 0, tcp_vX_do_rcv will not
-				 * free skb.
-				 */
-				if (res == -2)
-					return 0;
+			if (icsk->icsk_af_ops->conn_request(sk, skb) < 0)
 				return 1;
-			}
 
 			/* Now we have several options: In theory there is
 			 * nothing else in the frame. KA9Q has an option to
@@ -6081,6 +6083,8 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		tcp_urg(sk, skb, th);
 		__kfree_skb(skb);
 		tcp_data_snd_check(sk);
+		if (tp->mpc && is_master_tp(tp))
+			bh_unlock_sock(sk);
 		return 0;
 	}
 
@@ -6126,8 +6130,10 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 				 */
 				tcp_ack_update_rtt(sk, 0, 0);
 
-				if (!tp->mpc && tp->rx_opt.tstamp_ok)
+				if (tp->rx_opt.tstamp_ok)
 					tp->advmss -= TCPOLEN_TSTAMP_ALIGNED;
+				if (tp->mpc)
+					tp->advmss -= MPTCP_SUB_LEN_DSM_ALIGN;
 
 				/* Make sure socket is routed, for
 				 * correct metrics.

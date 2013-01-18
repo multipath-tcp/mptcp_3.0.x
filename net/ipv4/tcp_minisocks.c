@@ -148,7 +148,7 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 
 	tmp_opt.saw_tstamp = 0;
 	if (th->doff > (sizeof(*th) >> 2) && tcptw->tw_ts_recent_stamp) {
-		struct multipath_options mopt;
+		struct mptcp_options_received mopt;
 		mptcp_init_mp_opt(&mopt);
 
 		tcp_parse_options(skb, &tmp_opt, &hash_location, &mopt, 0);
@@ -184,9 +184,9 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 		if (!th->ack ||
 		    !after(TCP_SKB_CB(skb)->end_seq, tcptw->tw_rcv_nxt) ||
 		    TCP_SKB_CB(skb)->end_seq == TCP_SKB_CB(skb)->seq) {
-			inet_twsk_put(tw);
 			if (mptcp_is_data_fin(skb))
 				return TCP_TW_ACK;
+			inet_twsk_put(tw);
 			return TCP_TW_SUCCESS;
 		}
 
@@ -481,7 +481,6 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct request_sock *req,
 		newtp->snd_nxt = newtp->snd_up =
 			treq->snt_isn + 1 + tcp_s_data_size(oldtp);
 #ifdef CONFIG_MPTCP
-		newtp->rx_opt.rcv_isn = treq->rcv_isn;
 		memset(&newtp->rcvq_space, 0, sizeof(newtp->rcvq_space));
 #endif
 
@@ -558,6 +557,8 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct request_sock *req,
 			newtp->rx_opt.ts_recent_stamp = 0;
 			newtp->tcp_header_len = sizeof(struct tcphdr);
 		}
+		if (treq->saw_mpc)
+			newtp->tcp_header_len += MPTCP_SUB_LEN_DSM_ALIGN;
 #ifdef CONFIG_TCP_MD5SIG
 		newtp->md5sig_info = NULL;	/*XXX*/
 		if (newtp->af_specific->md5_lookup(sk, newsk))
@@ -584,8 +585,8 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 			   struct request_sock **prev)
 {
 	struct tcp_options_received tmp_opt;
-	struct multipath_options stat_mopt, *mopt = NULL;
 	const u8 *hash_location;
+	struct mptcp_options_received mopt;
 	struct sock *child;
 	const struct tcphdr *th = tcp_hdr(skb);
 	__be32 flg = tcp_flag_word(th) & (TCP_FLAG_RST|TCP_FLAG_SYN|TCP_FLAG_ACK);
@@ -593,15 +594,12 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 
 	tmp_opt.saw_tstamp = 0;
 
-	if (!is_meta_sk(sk)) {
-		mopt = &stat_mopt;
-		mptcp_init_mp_opt(mopt);
-	} else {
-		mopt = &(tcp_sk(sk)->mpcb->rx_opt);
-	}
+	mptcp_init_mp_opt(&mopt);
+	if (is_meta_sk(sk))
+		mopt.mpcb = tcp_sk(sk)->mpcb;
 
 	if (th->doff > (sizeof(struct tcphdr)>>2)) {
-		tcp_parse_options(skb, &tmp_opt, &hash_location, mopt, 0);
+		tcp_parse_options(skb, &tmp_opt, &hash_location, &mopt, 0);
 
 		if (tmp_opt.saw_tstamp) {
 			tmp_opt.ts_recent = req->ts_recent;
@@ -748,7 +746,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	     * or duplicate fourth ack will get lost. Options like MP_PRIO, ADD_ADDR,...
 	     *
 	     * We could store them in request_sock, but this would mean that we
-	     * have to put tcp_options_received and multipath_options in there,
+	     * have to put tcp_options_received and mptcp_options_received in there,
 	     * increasing considerably the size of the request-sock.
 	     *
 	     * As soon as we have reworked the request-sock MPTCP-fields and
@@ -780,7 +778,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		goto listen_overflow;
 
 	if (!is_meta_sk(sk)) {
-		int ret = mptcp_check_req_master(sk, child, req, prev, mopt);
+		int ret = mptcp_check_req_master(sk, child, req, prev, &mopt);
 		if (ret < 0)
 			goto listen_overflow;
 
@@ -788,7 +786,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		if (!ret)
 			return tcp_sk(child)->mpcb->master_sk;
 	} else {
-		return mptcp_check_req_child(sk, child, req, prev, &tmp_opt);
+		return mptcp_check_req_child(sk, child, req, prev, &mopt);
 	}
 	inet_csk_reqsk_queue_unlink(sk, req, prev);
 	inet_csk_reqsk_queue_removed(sk, req);
@@ -832,7 +830,6 @@ int tcp_child_process(struct sock *parent, struct sock *child,
 		if (state == TCP_SYN_RECV && child->sk_state != state)
 			parent->sk_data_ready(parent, 0);
 	} else {
-		printk(KERN_ERR"%s socket is owned dst %u\n", __func__, ntohs(inet_sk(child)->inet_dport));
 		/* Alas, it is possible again, because we do lookup
 		 * in main socket hash table and lock on listening
 		 * socket does not protect us more.
@@ -842,6 +839,8 @@ int tcp_child_process(struct sock *parent, struct sock *child,
 		__sk_add_backlog(meta_sk, skb);
 	}
 
+	if (tcp_sk(child)->mpc)
+		bh_unlock_sock(child);
 	bh_unlock_sock(meta_sk);
 	sock_put(child);
 	return ret;
