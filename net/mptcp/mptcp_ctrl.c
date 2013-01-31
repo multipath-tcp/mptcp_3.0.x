@@ -1228,7 +1228,6 @@ void mptcp_close(struct sock *meta_sk, long timeout)
 			mpcb->mptcp_loc_token);
 
 	mutex_lock(&mpcb->mutex);
-
 	lock_sock(meta_sk);
 
 	mptcp_for_each_sk(mpcb, sk_it) {
