@@ -1747,7 +1747,8 @@ found:
 			continue;
 
 		sk_it->sk_err = ECONNRESET;
-		tcp_send_active_reset(sk_it, GFP_ATOMIC);
+		if (tcp_need_reset(sk_it->sk_state))
+			tcp_send_active_reset(sk_it, GFP_ATOMIC);
 		mptcp_sub_force_close(sk_it);
 	}
 	if (!in_serving_softirq())
