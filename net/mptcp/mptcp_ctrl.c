@@ -442,7 +442,7 @@ static struct lock_class_key meta_key;
 static struct lock_class_key meta_slock_key;
 
 /* Code heavily inspired from sk_clone() */
-int mptcp_inherit_sk(struct sock *sk, struct sock *newsk, int family,
+int mptcp_inherit_sk(const struct sock *sk, struct sock *newsk, int family,
 		     const gfp_t flags)
 {
 	struct sk_filter *filter;
@@ -756,7 +756,7 @@ int mptcp_alloc_mpcb(struct sock *meta_sk, __u64 remote_key, u32 window)
 	return 0;
 }
 
-struct sock *mptcp_sk_clone(struct sock *sk, int family, const gfp_t priority)
+struct sock *mptcp_sk_clone(const struct sock *sk, int family, const gfp_t priority)
 {
 	struct sock *newsk = NULL;
 
@@ -1553,6 +1553,7 @@ static int __init mptcp_init(void)
 	int ret = -ENOMEM;
 #ifdef CONFIG_SYSCTL
 	struct ctl_table_header *mptcp_sysclt;
+	struct ctl_path path;
 #endif
 
 	mptcp_sock_cache = kmem_cache_create("mptcp_sock",
@@ -1577,7 +1578,8 @@ static int __init mptcp_init(void)
 		goto mptcp_pm_failed;
 
 #ifdef CONFIG_SYSCTL
-	mptcp_sysclt = register_net_sysctl(&init_net, "net/mptcp", mptcp_table);
+	path.procname = "net/mptcp";
+	mptcp_sysclt = register_net_sysctl_table(&init_net, &path, mptcp_table);
 	if (!mptcp_sysclt) {
 		ret = -ENOMEM;
 		goto register_sysctl_failed;

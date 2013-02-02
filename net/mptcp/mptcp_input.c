@@ -1439,7 +1439,7 @@ static void mptcp_handle_add_addr(const unsigned char *ptr, struct sock *sk)
 
 		mptcp_v4_add_raddress(tcp_sk(sk)->mpcb, &mpadd->u.v4.addr, port,
 				      mpadd->addr_id);
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	} else if (mpadd->ipver == 6) {
 		__be16 port = 0;
 		if (mpadd->len == MPTCP_SUB_LEN_ADD_ADDR6 + 2)
@@ -1492,7 +1492,7 @@ static void mptcp_parse_addropt(const struct sk_buff *skb, struct sock *sk)
 			    ((struct mptcp_option *)ptr	)->sub == MPTCP_SUB_ADD_ADDR) {
 				struct mp_add_addr *mpadd = (struct mp_add_addr *) ptr;
 
-#if IS_ENABLED(CONFIG_IPV6)
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 				if ((mpadd->ipver == 4 && opsize != MPTCP_SUB_LEN_ADD_ADDR4 &&
 				     opsize != MPTCP_SUB_LEN_ADD_ADDR4 + 2) ||
 				    (mpadd->ipver == 6 && opsize != MPTCP_SUB_LEN_ADD_ADDR6 &&
