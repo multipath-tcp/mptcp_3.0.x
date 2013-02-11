@@ -1496,7 +1496,7 @@ static void mptcp_parse_addropt(const struct sk_buff *skb, struct sock *sk)
 			if (opsize > length)
 				return;  /* don't parse partial options */
 			if (opcode == TCPOPT_MPTCP &&
-			    ((struct mptcp_option *)ptr	)->sub == MPTCP_SUB_ADD_ADDR) {
+			    ((struct mptcp_option *)ptr)->sub == MPTCP_SUB_ADD_ADDR) {
 				struct mp_add_addr *mpadd = (struct mp_add_addr *) ptr;
 
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
