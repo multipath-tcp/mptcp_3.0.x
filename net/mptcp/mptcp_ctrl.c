@@ -349,7 +349,7 @@ static void mptcp_mpcb_inherit_sockopts(struct sock *meta_sk, struct sock *maste
 	 * Socket-options on the todo-list
 	 * ======
 	 * SO_BINDTODEVICE - should probably prevent creation of new subsocks
-	 * 		     across other devices. - what about the api-draft?
+	 *		     across other devices. - what about the api-draft?
 	 * SO_DEBUG
 	 * SO_REUSEADDR - probably we don't care about this
 	 * SO_DONTROUTE, SO_BROADCAST
@@ -455,11 +455,11 @@ int mptcp_inherit_sk(const struct sock *sk, struct sock *newsk, int family,
 	if (sk->sk_family == AF_INET) {
 		memcpy(newsk, sk, offsetof(struct sock, sk_dontcopy_begin));
 		memcpy(&newsk->sk_dontcopy_end, &sk->sk_dontcopy_end,
-			sizeof(struct tcp_sock) - offsetof(struct sock, sk_dontcopy_end));
+		       sizeof(struct tcp_sock) - offsetof(struct sock, sk_dontcopy_end));
 	} else {
 		memcpy(newsk, sk, offsetof(struct sock, sk_dontcopy_begin));
 		memcpy(&newsk->sk_dontcopy_end, &sk->sk_dontcopy_end,
-			sizeof(struct tcp6_sock) - offsetof(struct sock, sk_dontcopy_end));
+		       sizeof(struct tcp6_sock) - offsetof(struct sock, sk_dontcopy_end));
 	}
 
 #ifdef CONFIG_SECURITY_NETWORK
@@ -469,7 +469,8 @@ int mptcp_inherit_sk(const struct sock *sk, struct sock *newsk, int family,
 
 	/* Has been changed by sock_copy above - we may need an IPv6-socket */
 	newsk->sk_family = family;
-	newsk->sk_prot = newsk->sk_prot_creator = prot;
+	newsk->sk_prot = prot;
+	newsk->sk_prot_creator = prot;
 	inet_csk(newsk)->icsk_af_ops = af_ops;
 
 	/* We don't yet have the mptcp-point. Thus we still need inet_sock_destruct */
@@ -485,13 +486,14 @@ int mptcp_inherit_sk(const struct sock *sk, struct sock *newsk, int family,
 	/* Unlocks are in:
 	 *
 	 * 1. If we are creating the master-sk
-	 * 	* on client-side in tcp_rcv_state_process, "case TCP_SYN_SENT"
-	 * 	* on server-side in tcp_child_process
+	 *	* on client-side in tcp_rcv_state_process, "case TCP_SYN_SENT"
+	 *	* on server-side in tcp_child_process
 	 * 2. If we are creating another subsock
-	 * 	* Also in tcp_child_process
+	 *	* Also in tcp_child_process
 	 */
 	bh_lock_sock(newsk);
-	newsk->sk_backlog.head	= newsk->sk_backlog.tail = NULL;
+	newsk->sk_backlog.head = NULL;
+	newsk->sk_backlog.tail = NULL;
 	newsk->sk_backlog.len = 0;
 
 	atomic_set(&newsk->sk_rmem_alloc, 0);
@@ -562,7 +564,7 @@ int mptcp_inherit_sk(const struct sock *sk, struct sock *newsk, int family,
 		percpu_counter_inc(newsk->sk_prot->sockets_allocated);
 
 	if (sock_flag(newsk, SOCK_TIMESTAMP) ||
-		sock_flag(newsk, SOCK_TIMESTAMPING_RX_SOFTWARE))
+	    sock_flag(newsk, SOCK_TIMESTAMPING_RX_SOFTWARE))
 		net_enable_timestamp();
 
 	return 0;
@@ -586,7 +588,8 @@ int mptcp_alloc_mpcb(struct sock *meta_sk, __u64 remote_key, u32 window)
 	master_icsk = inet_csk(master_sk);
 
 	/* Need to set this here - it is needed by mptcp_inherit_sk */
-	master_sk->sk_prot = master_sk->sk_prot_creator = meta_sk->sk_prot;
+	master_sk->sk_prot = meta_sk->sk_prot;
+	master_sk->sk_prot_creator = meta_sk->sk_prot;
 	master_icsk->icsk_af_ops = meta_icsk->icsk_af_ops;
 
 	mpcb = kmem_cache_zalloc(mptcp_cb_cache, GFP_ATOMIC);
@@ -661,7 +664,9 @@ int mptcp_alloc_mpcb(struct sock *meta_sk, __u64 remote_key, u32 window)
 	idsn = ntohll(idsn) + 1;
 	mpcb->rcv_high_order[0] = idsn >> 32;
 	mpcb->rcv_high_order[1] = mpcb->rcv_high_order[0] + 1;
-	meta_tp->copied_seq = meta_tp->rcv_nxt = meta_tp->rcv_wup = (u32) idsn;
+	meta_tp->copied_seq = (u32) idsn;
+	meta_tp->rcv_nxt = (u32) idsn;
+	meta_tp->rcv_wup = (u32) idsn;
 
 	meta_tp->snd_wl1 = meta_tp->rcv_nxt - 1;
 	meta_tp->snd_wnd = window;
@@ -765,7 +770,8 @@ struct sock *mptcp_sk_clone(const struct sock *sk, int family, const gfp_t prior
 			return NULL;
 
 		/* Set these pointers - they are needed by mptcp_inherit_sk */
-		newsk->sk_prot = newsk->sk_prot_creator = &tcp_prot;
+		newsk->sk_prot = &tcp_prot;
+		newsk->sk_prot_creator = &tcp_prot;
 		inet_csk(newsk)->icsk_af_ops = &ipv4_specific;
 		newsk->sk_family = AF_INET;
 	}
@@ -775,7 +781,8 @@ struct sock *mptcp_sk_clone(const struct sock *sk, int family, const gfp_t prior
 		if (!newsk)
 			return NULL;
 
-		newsk->sk_prot = newsk->sk_prot_creator = &tcpv6_prot;
+		newsk->sk_prot = &tcpv6_prot;
+		newsk->sk_prot_creator = &tcpv6_prot;
 		if (family == AF_INET)
 			inet_csk(newsk)->icsk_af_ops = &ipv6_mapped;
 		else
@@ -846,24 +853,22 @@ int mptcp_add_sock(struct sock *meta_sk, struct sock *sk, u8 rem_id, gfp_t flags
 	sk->sk_destruct = mptcp_sock_destruct;
 
 	if (sk->sk_family == AF_INET)
-		mptcp_debug("%s: token %#x pi %d, src_addr:%pI4:%d dst_addr:"
-				"%pI4:%d, cnt_subflows now %d\n", __func__ ,
-				mpcb->mptcp_loc_token,
-				tp->mptcp->path_index,
-				&((struct inet_sock *) tp)->inet_saddr,
-				ntohs(((struct inet_sock *) tp)->inet_sport),
-				&((struct inet_sock *) tp)->inet_daddr,
-				ntohs(((struct inet_sock *) tp)->inet_dport),
-				mpcb->cnt_subflows);
+		mptcp_debug("%s: token %#x pi %d, src_addr:%pI4:%d dst_addr:%pI4:%d, cnt_subflows now %d\n",
+			    __func__ , mpcb->mptcp_loc_token,
+			    tp->mptcp->path_index,
+			    &((struct inet_sock *)tp)->inet_saddr,
+			    ntohs(((struct inet_sock *)tp)->inet_sport),
+			    &((struct inet_sock *)tp)->inet_daddr,
+			    ntohs(((struct inet_sock *)tp)->inet_dport),
+			    mpcb->cnt_subflows);
 	else
-		mptcp_debug("%s: token %#x pi %d, src_addr:%pI6:%d dst_addr:"
-				"%pI6:%d, cnt_subflows now %d\n", __func__ ,
-				mpcb->mptcp_loc_token,
-				tp->mptcp->path_index, &inet6_sk(sk)->saddr,
-				ntohs(((struct inet_sock *) tp)->inet_sport),
-				&inet6_sk(sk)->daddr,
-				ntohs(((struct inet_sock *) tp)->inet_dport),
-				mpcb->cnt_subflows);
+		mptcp_debug("%s: token %#x pi %d, src_addr:%pI6:%d dst_addr:%pI6:%d, cnt_subflows now %d\n",
+			    __func__ , mpcb->mptcp_loc_token,
+			    tp->mptcp->path_index, &inet6_sk(sk)->saddr,
+			    ntohs(((struct inet_sock *)tp)->inet_sport),
+			    &inet6_sk(sk)->daddr,
+			    ntohs(((struct inet_sock *)tp)->inet_dport),
+			    mpcb->cnt_subflows);
 
 	return 0;
 }
@@ -1008,10 +1013,11 @@ void mptcp_cleanup_rbuf(struct sock *meta_sk, int copied)
 		     * receive buffer and there was a small segment
 		     * in queue.
 		     */
-		    (copied > 0 && ((icsk->icsk_ack.pending & ICSK_ACK_PUSHED2)
-				|| ((icsk->icsk_ack.pending & ICSK_ACK_PUSHED)
-				&& !icsk->icsk_ack.pingpong))
-				&& !atomic_read(&meta_sk->sk_rmem_alloc))) {
+		    (copied > 0 &&
+		     ((icsk->icsk_ack.pending & ICSK_ACK_PUSHED2) ||
+		      ((icsk->icsk_ack.pending & ICSK_ACK_PUSHED) &&
+		       !icsk->icsk_ack.pingpong)) &&
+		     !atomic_read(&meta_sk->sk_rmem_alloc))) {
 			time_to_ack = 1;
 			tcp_send_ack(sk);
 		}
@@ -1026,8 +1032,8 @@ void mptcp_cleanup_rbuf(struct sock *meta_sk, int copied)
 	 * Even if window raised up to infinity, do not send window open ACK
 	 * in states, where we will not receive more. It is useless.
 	 */
-	if (copied > 0 && !time_to_ack
-			&& !(meta_sk->sk_shutdown & RCV_SHUTDOWN)) {
+	if (copied > 0 && !time_to_ack &&
+	    !(meta_sk->sk_shutdown & RCV_SHUTDOWN)) {
 		__u32 rcv_window_now = tcp_receive_window(meta_tp);
 
 		/* Optimize, __tcp_select_window() is not cheap. */
@@ -1053,8 +1059,8 @@ void mptcp_cleanup_rbuf(struct sock *meta_sk, int copied)
 		if (subsk)
 			tcp_send_ack(subsk);
 		else
-			printk(KERN_ERR "%s did not find a subsk! "
-					"Should not happen.\n", __func__);
+			pr_err("%s did not find a subsk! Should not happen.\n",
+			       __func__);
 	}
 }
 
@@ -1347,7 +1353,7 @@ adjudge_to_death:
 
 			if (tmo > TCP_TIMEWAIT_LEN) {
 				inet_csk_reset_keepalive_timer(meta_sk,
-						tmo - TCP_TIMEWAIT_LEN);
+							       tmo - TCP_TIMEWAIT_LEN);
 			} else {
 				tcp_time_wait(meta_sk, TCP_FIN_WAIT2, tmo);
 				goto out;
@@ -1358,8 +1364,7 @@ adjudge_to_death:
 		sk_mem_reclaim(meta_sk);
 		if (tcp_too_many_orphans(meta_sk, 0)) {
 			if (net_ratelimit())
-				printk(KERN_INFO "MPTCP: too many of orphaned "
-				       "sockets\n");
+				pr_info("MPTCP: too many of orphaned sockets\n");
 			tcp_set_state(meta_sk, TCP_CLOSE);
 			tcp_send_active_reset(meta_sk, GFP_ATOMIC);
 			NET_INC_STATS_BH(sock_net(meta_sk),
