@@ -418,7 +418,7 @@ static void mptcp_combine_dfin(struct sk_buff *skb, struct sock *meta_sk,
 
 	/* In infinite mapping we always try to combine */
 	if (mpcb->infinite_mapping && tcp_close_state(subsk)) {
-		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_FIN;
+		TCP_SKB_CB(skb)->flags |= TCPHDR_FIN;
 		return;
 	}
 
