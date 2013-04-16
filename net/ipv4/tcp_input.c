@@ -3284,6 +3284,8 @@ static int tcp_clean_rtx_queue(struct sock *sk, int prior_fackets,
 		 */
 		if (!(scb->flags & TCPHDR_SYN)) {
 			flag |= FLAG_DATA_ACKED;
+			if (tp->mpc && mptcp_is_data_seq(skb))
+				flag |= MPTCP_FLAG_DATA_ACKED;
 		} else {
 			flag |= FLAG_SYN_ACKED;
 			tp->retrans_stamp = 0;
